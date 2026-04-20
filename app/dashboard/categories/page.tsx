@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
 import type { ProductCategory } from "@/lib/types/catalog";
@@ -103,13 +104,20 @@ export default function CategoriesAdminPage() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="font-display text-3xl font-bold text-foreground">Categories</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Stored in Firestore collection <code className="font-mono text-xs">categories</code> (document ID = URL
-          slug).
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Catalogue"
+        title="Categories"
+        subtitle="Define product families, messaging, highlights, and sort order for public catalogue pages."
+        actions={
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:bg-tint-primary/20 hover:text-foreground"
+          >
+            Refresh list
+          </button>
+        }
+      />
 
       {missingSa ? <SetupCredentialsCallout /> : null}
 

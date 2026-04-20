@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
 import { fetchCatalogDocumentCounts } from "@/lib/dashboard/client-counts";
 
 export default function DashboardHomePage() {
-  const [counts, setCounts] = useState<{ categories: number; products: number; users: number | null }>({
+  const [counts, setCounts] = useState<{ categories: number; products: number; users: number | null; enquiries: number | null }>({
     categories: 0,
     products: 0,
     users: null,
+    enquiries: null,
   });
   const [saConfigured, setSaConfigured] = useState<boolean | null>(null);
   const [prodEmails, setProdEmails] = useState(false);
@@ -42,18 +44,25 @@ export default function DashboardHomePage() {
         }
 
         try {
-          const u = await adminApi<{ users: unknown[] }>("/api/admin/users");
+          const [u, enquiries] = await Promise.all([
+            adminApi<{ users: unknown[] }>("/api/admin/users"),
+            adminApi<{ total: number }>("/api/admin/enquiries?limit=1"),
+          ]);
           if (!cancelled) {
-            setCounts((c) => ({ ...c, users: u.users?.length ?? 0 }));
+            setCounts((c) => ({
+              ...c,
+              users: u.users?.length ?? 0,
+              enquiries: enquiries.total ?? 0,
+            }));
             setError(null);
           }
         } catch (e) {
           if (!cancelled) {
             if (e instanceof AdminApiError && e.code === "MISSING_SERVICE_ACCOUNT") {
-              setCounts((c) => ({ ...c, users: null }));
+              setCounts((c) => ({ ...c, users: null, enquiries: null }));
               setError(null);
             } else {
-              setCounts((c) => ({ ...c, users: null }));
+              setCounts((c) => ({ ...c, users: null, enquiries: null }));
               setError(e instanceof Error ? e.message : "Could not load users");
             }
           }
@@ -74,29 +83,17 @@ export default function DashboardHomePage() {
 
   return (
     <div className="space-y-10">
-      <header className="relative overflow-hidden rounded-[1.75rem] border border-border bg-gradient-to-br from-surface/90 via-card to-tint-primary/15 p-8 shadow-elevated-md md:p-10">
-        <div
-          className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full opacity-40 blur-3xl"
-          style={{ background: "var(--aura-glow-a)" }}
-          aria-hidden
-        />
-        <div className="relative">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.32em] text-primary">Dashboard</p>
-          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-            Catalogue &amp; access
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
-            Manage Firestore categories and products for the public site, and administer Firebase Authentication users
-            when the service account is configured.
-          </p>
-          {prodEmails ? (
-            <p className="mt-4 max-w-2xl rounded-xl border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground">
-              Production mode: set <code className="font-mono text-xs">ADMIN_EMAILS</code> to restrict who can use this
-              panel.
-            </p>
-          ) : null}
-        </div>
-      </header>
+      <PageHeader
+        eyebrow="Dashboard"
+        title="Catalogue & access"
+        subtitle="Control catalogue content and team access from one place when admin credentials are configured."
+      />
+
+      {prodEmails ? (
+        <p className="max-w-2xl rounded-xl border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground">
+          Production mode: set <code className="font-mono text-xs">ADMIN_EMAILS</code> to restrict who can use this panel.
+        </p>
+      ) : null}
 
       {showSaHint ? <SetupCredentialsCallout /> : null}
 
@@ -108,33 +105,41 @@ export default function DashboardHomePage() {
         <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-caption-foreground">
           At a glance
         </h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Categories"
             value={counts.categories}
-            hint="Firestore /categories"
+            hint="Catalogue families"
             accent="from-primary/25 to-transparent"
             ring="ring-primary/20"
           />
           <StatCard
             label="Products"
             value={counts.products}
-            hint="Firestore /products"
+            hint="Catalogue entries"
             accent="from-secondary/20 to-transparent"
             ring="ring-secondary/25"
           />
           <StatCard
             label="Auth users"
             value={counts.users === null ? "—" : counts.users}
-            hint={counts.users === null ? "Needs service account" : "Firebase Authentication"}
+            hint={counts.users === null ? "Needs service account" : "Admin accounts"}
             accent="from-accent/25 to-transparent"
             ring="ring-accent/20"
             dim={counts.users === null}
           />
+          <StatCard
+            label="Enquiries"
+            value={counts.enquiries === null ? "—" : counts.enquiries}
+            hint={counts.enquiries === null ? "Needs service account" : "Inbound leads"}
+            accent="from-primary-mid/20 to-transparent"
+            ring="ring-primary-mid/20"
+            dim={counts.enquiries === null}
+          />
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Link
           href="/dashboard/categories"
           className="group rounded-2xl border border-border bg-card p-6 shadow-elevated-sm transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-elevated-md"
@@ -157,6 +162,17 @@ export default function DashboardHomePage() {
           <p className="mt-2 text-sm text-muted-foreground">Specifications, availability, and related items per product.</p>
           <span className="mt-4 inline-flex text-sm font-semibold text-primary group-hover:underline">
             Open products →
+          </span>
+        </Link>
+        <Link
+          href="/dashboard/enquiries"
+          className="group rounded-2xl border border-border bg-card p-6 shadow-elevated-sm transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-elevated-md"
+        >
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.25em] text-primary">Manage</p>
+          <h3 className="mt-2 font-display text-lg font-semibold text-foreground group-hover:text-primary">Enquiries</h3>
+          <p className="mt-2 text-sm text-muted-foreground">Triage inbound requests, update statuses, and keep follow-up notes.</p>
+          <span className="mt-4 inline-flex text-sm font-semibold text-primary group-hover:underline">
+            Open enquiries →
           </span>
         </Link>
       </section>

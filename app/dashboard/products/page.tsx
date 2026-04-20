@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
 import type { CatalogProduct, ProductAvailability } from "@/lib/types/catalog";
@@ -152,13 +153,20 @@ export default function ProductsAdminPage() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="font-display text-3xl font-bold text-foreground">Products</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Firestore collection <code className="font-mono text-xs">products</code> — document ID = product slug (globally
-          unique).
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Catalogue"
+        title="Products"
+        subtitle="Manage SKU entries, specifications, availability states, and related items across the catalogue."
+        actions={
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:bg-tint-primary/20 hover:text-foreground"
+          >
+            Refresh list
+          </button>
+        }
+      />
 
       {missingSa ? <SetupCredentialsCallout /> : null}
 

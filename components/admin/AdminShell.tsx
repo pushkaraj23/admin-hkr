@@ -1,10 +1,19 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { IconCategories, IconLogout, IconMenu, IconOverview, IconProducts, IconUsers } from "@/components/admin/icons";
+import {
+  IconCategories,
+  IconEnquiries,
+  IconLogout,
+  IconMenu,
+  IconOverview,
+  IconProducts,
+  IconUsers,
+} from "@/components/admin/icons";
 import { cn } from "@/lib/cn";
 
 const nav = [
@@ -12,6 +21,7 @@ const nav = [
   { href: "/dashboard/users", label: "Users", Icon: IconUsers },
   { href: "/dashboard/categories", label: "Categories", Icon: IconCategories },
   { href: "/dashboard/products", label: "Products", Icon: IconProducts },
+  { href: "/dashboard/enquiries", label: "Enquiries", Icon: IconEnquiries },
 ] as const;
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -43,7 +53,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-full bg-background">
+    <div className="min-h-full bg-background md:h-screen md:overflow-hidden">
       {/* Ambient */}
       <div
         className="pointer-events-none fixed inset-0 -z-10 opacity-[0.35]"
@@ -56,10 +66,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-border/80 bg-card/90 px-4 py-3 backdrop-blur-xl md:hidden">
-        <div className="min-w-0">
-          <p className="truncate font-display text-base font-bold text-foreground">HKR Admin</p>
-          <p className="truncate text-[11px] text-caption-foreground">{user.email}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center">
+            <img
+              src="/hkr_logo.png"
+              alt="HKR Biotech"
+              className="rounded-full border border-border bg-light px-3 py-1 object-contain"
+              style={{ height: "44px" }}
+            />
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-caption-foreground">{user.email}</p>
         </div>
+  
         <button
           type="button"
           className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-foreground shadow-sm"
@@ -105,13 +123,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
       ) : null}
 
-      <div className="mx-auto flex max-w-[1600px] md:min-h-screen">
+      <div className="mx-auto flex max-w-[1600px] md:h-screen">
         {/* Desktop sidebar */}
-        <aside className="relative hidden w-[260px] shrink-0 flex-col border-r border-border/80 bg-card/40 backdrop-blur-sm md:flex">
-          <div className="flex h-full min-h-[100vh] flex-col px-4 pb-6 pt-8">
+        <aside className="relative hidden h-screen w-[260px] shrink-0 flex-col border-r border-border bg-surface/95 shadow-[8px_0_24px_rgba(0,0,0,0.22)] backdrop-blur-xl md:sticky md:top-0 md:flex">
+          <div className="flex h-full flex-col px-4 pb-6 pt-8">
             <div className="px-2">
-              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.35em] text-primary">Control</p>
-              <h1 className="mt-1 font-display text-xl font-bold tracking-tight text-foreground">HKR Biotech</h1>
+              <div className="mb-3">
+                <img
+                  src="/hkr_logo.png"
+                  alt="HKR Biotech"
+                  className="h-auto w-full rounded-2xl border border-border bg-light px-6 py-4 object-contain"
+                />
+              </div>
               <p className="mt-3 line-clamp-2 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-[11px] leading-snug text-caption-foreground">
                 {user.email}
               </p>
@@ -158,7 +181,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 md:h-screen md:overflow-y-auto">
           <div className="mx-auto max-w-4xl px-4 py-8 md:px-10 md:py-12 lg:max-w-5xl">{children}</div>
         </div>
       </div>

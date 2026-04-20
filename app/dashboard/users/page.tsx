@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
 
@@ -74,13 +75,20 @@ export default function UsersAdminPage() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="font-display text-3xl font-bold text-foreground">Users</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Lists Firebase Authentication users. Creating users requires the service account (
-          <code className="rounded bg-muted px-1 font-mono text-xs">FIREBASE_SERVICE_ACCOUNT_JSON</code>).
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Users"
+        subtitle="Manage access for internal team members who can use this admin workspace."
+        actions={
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:bg-tint-primary/20 hover:text-foreground"
+          >
+            Refresh
+          </button>
+        }
+      />
 
       {missingSa ? <SetupCredentialsCallout /> : null}
 

@@ -1,22 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
   /* Page & text */
-  --background: #eee9df;
-  --foreground: #1b2632;
-  --muted-foreground: #5c564c;
-  --caption-foreground: #7a7368;
+  --background: #1b2632;
+  --foreground: #ffffff;
+  --muted-foreground: rgba(255, 255, 255, 0.76);
+  --caption-foreground: rgba(255, 255, 255, 0.56);
 
   /* Surfaces */
-  --surface: #2c3b4d;
-  --surface-2: #3d5066;
-  --card: #ffffff;
-  --card-foreground: #1b2632;
-  --popover: rgba(255, 255, 255, 0.92);
-  --popover-foreground: #1b2632;
-  --muted: #e5e1d8;
+  --surface: #223041;
+  --surface-2: #2d3f54;
+  --card: rgba(18, 25, 35, 0.56);
+  --card-foreground: #ffffff;
+  --popover: rgba(18, 25, 35, 0.9);
+  --popover-foreground: #ffffff;
+  --muted: rgba(18, 25, 35, 0.5);
 
   /* Brand & actions */
   --primary: #ffb162;
@@ -24,11 +24,11 @@
   --primary-deep: #a35139;
   --primary-mid: #ffc48a;
 
-  --secondary: #2c3b4d;
+  --secondary: #4a5d72;
   --secondary-foreground: #ffffff;
 
   --accent: #9ba8b7;
-  --accent-foreground: #1b2632;
+  --accent-foreground: #ffffff;
 
   /* Status */
   --success: #5b7f6a;
@@ -37,35 +37,35 @@
   --info: #3d5170;
 
   /* Borders & focus */
-  --border: rgba(27, 38, 50, 0.12);
-  --border-strong: rgba(27, 38, 50, 0.22);
-  --input: rgba(27, 38, 50, 0.1);
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --input: rgba(255, 255, 255, 0.18);
   --ring: rgba(255, 177, 98, 0.45);
 
   /* Glass & overlays */
-  --surface-glass: rgba(255, 255, 255, 0.78);
+  --surface-glass: rgba(18, 25, 35, 0.62);
 
   /* Light surfaces */
   --light: #ffffff;
   --light-foreground: #1b2632;
-  --light-muted: #6d655a;
-  --light-border: rgba(27, 38, 50, 0.12);
+  --light-muted: #5c564c;
+  --light-border: rgba(255, 255, 255, 0.16);
   --light-accent: #2c3b4d;
 
-  --overlay: rgba(255, 255, 255, 0.18);
-  --overlay-hover: rgba(255, 255, 255, 0.24);
+  --overlay: rgba(255, 255, 255, 0.14);
+  --overlay-hover: rgba(255, 255, 255, 0.22);
   --overlay-strong: rgba(255, 255, 255, 0.3);
 
   --on-dark: #ffffff;
   --on-dark-muted: rgba(255, 255, 255, 0.72);
 
-  --scrim: rgba(27, 38, 50, 0.32);
-  --scrim-soft: rgba(27, 38, 50, 0.5);
+  --scrim: rgba(18, 25, 35, 0.4);
+  --scrim-soft: rgba(18, 25, 35, 0.58);
 
   /* Tints */
-  --tint-primary: #fff0e0;
-  --tint-accent: #e8ecf0;
-  --tint-danger: #ffe8e2;
+  --tint-primary: rgba(255, 177, 98, 0.16);
+  --tint-accent: rgba(155, 168, 183, 0.16);
+  --tint-danger: rgba(163, 81, 57, 0.16);
 
   /* Glows */
   --glow-primary: rgba(255, 177, 98, 0.28);
@@ -74,10 +74,10 @@
 
   /* Gradients */
   --hero-gradient: linear-gradient(135deg,
-      #2c3b4d 0%,
-      #3d5066 28%,
-      #ffb162 58%,
-      #eee9df 100%);
+      #1b2632 0%,
+      #2c3b4d 38%,
+      #4a5d72 72%,
+      #9ba8b7 100%);
 
   --cta-gradient: linear-gradient(90deg, #a35139, #ffb162, #ffc48a);
 
@@ -425,6 +425,11 @@
 
 body {
   background-color: var(--background);
+  background-image:
+    var(--aura-glow-a),
+    var(--aura-glow-b),
+    var(--aura-floor),
+    linear-gradient(168deg, #1b2632 0%, #2c3b4d 52%, #4a5d72 100%);
   color: var(--foreground);
   overflow-x: hidden;
 }

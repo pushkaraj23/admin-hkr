@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -48,8 +49,17 @@ export default function LoginPage() {
         aria-hidden
       />
       <div className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-border bg-gradient-to-b from-card to-tint-primary/10 p-8 shadow-elevated-lg">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">Admin</p>
-        <h1 className="mt-2 font-display text-2xl font-bold text-foreground">HKR control panel</h1>
+        <div className="mb-4 flex items-center justify-center">
+          <Image
+            src="/hkr_logo.png"
+            alt="HKR Biotech"
+            width={180}
+            height={44}
+            className="h-11 w-auto rounded-lg border border-border bg-light px-2 py-1 object-contain"
+            priority
+          />
+        </div>
+        <h1 className="text-center font-display text-2xl font-bold text-foreground">Admin login</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Sign in with a Firebase account allowed in{" "}
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">ADMIN_EMAILS</code>.

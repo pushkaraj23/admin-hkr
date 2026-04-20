@@ -19,10 +19,12 @@ export function SetupCredentialsCallout({ variant = "banner" }: Props) {
         <div className="min-w-0 space-y-2">
           <h3 className="font-display text-base font-semibold text-foreground">Server credentials needed</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Add <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">FIREBASE_SERVICE_ACCOUNT_JSON</code>{" "}
-            to <span className="font-mono text-xs">admin-hkr/.env.local</span> (paste the full JSON from Firebase
-            Console → Project settings → Service accounts → Generate new private key). Restart{" "}
-            <code className="font-mono text-xs">npm run dev</code> after saving.
+            Add server credentials to <span className="font-mono text-xs">admin-hkr/.env.local</span>: either{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">FIREBASE_SERVICE_ACCOUNT_JSON</code>{" "}
+            (paste the full JSON as one line) or{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">FIREBASE_SERVICE_ACCOUNT_PATH</code>{" "}
+            pointing at the downloaded key file. Get the key from Firebase Console → Project settings → Service accounts
+            → Generate new private key. Restart <code className="font-mono text-xs">npm run dev</code> after saving.
           </p>
           <p className="text-xs text-caption-foreground">
             The public <code className="font-mono">NEXT_PUBLIC_*</code> keys handle sign-in; the service account unlocks
