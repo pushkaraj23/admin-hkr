@@ -182,7 +182,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </aside>
 
         <div className="min-w-0 flex-1 md:h-screen md:overflow-y-auto">
-          <div className="mx-auto max-w-4xl px-4 py-8 md:px-10 md:py-12 lg:max-w-5xl">{children}</div>
+          <div className="mx-auto max-w-4xl px-4 py-4 md:px-10 md:py-6 lg:max-w-5xl">{children}</div>
         </div>
       </div>
     </div>

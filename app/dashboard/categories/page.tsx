@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
@@ -37,6 +37,7 @@ export default function CategoriesAdminPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [missingSa, setMissingSa] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,7 +193,7 @@ export default function CategoriesAdminPage() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Catalogue"
         title="Categories"
@@ -217,43 +218,10 @@ export default function CategoriesAdminPage() {
         <p className="rounded-xl border border-primary/25 bg-tint-primary/20 px-4 py-3 text-sm text-foreground">{importResult}</p>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-elevated-sm">
-        <h2 className="font-display text-lg font-semibold text-foreground">Import from CSV</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Required columns: <code className="font-mono text-xs">slug</code>, <code className="font-mono text-xs">name</code>.
-          Optional: <code className="font-mono text-xs">imageUrl</code>, <code className="font-mono text-xs">tagline</code>, <code className="font-mono text-xs">description</code>, <code className="font-mono text-xs">overview</code>, <code className="font-mono text-xs">highlights</code>, <code className="font-mono text-xs">order</code>.
-          Use <code className="font-mono text-xs">|</code> to separate multiple highlights.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <label className="inline-flex cursor-pointer items-center rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground hover:border-primary/30 hover:text-foreground">
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              disabled={importing}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void importCsv(file);
-                e.currentTarget.value = "";
-              }}
-            />
-            {importing ? "Importing..." : "Upload CSV"}
-          </label>
-          <button
-            type="button"
-            onClick={downloadSampleCsv}
-            className="inline-flex items-center rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
-          >
-            Download sample CSV
-          </button>
-        </div>
-      </section>
-
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-foreground">Saved categories</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Search and open details only when needed.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <input
@@ -269,8 +237,35 @@ export default function CategoriesAdminPage() {
             >
               Add category
             </button>
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+              className="rounded-full border border-border bg-background/60 px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:text-foreground disabled:opacity-60"
+            >
+              {importing ? "Importing..." : "Import CSV"}
+            </button>
+            <button
+              type="button"
+              onClick={downloadSampleCsv}
+              className="rounded-full border border-border bg-background/60 px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
+            >
+              Sample CSV
+            </button>
           </div>
         </div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          disabled={importing}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void importCsv(file);
+            e.currentTarget.value = "";
+          }}
+        />
         <div className="overflow-x-auto rounded-2xl border border-border">
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="bg-muted/50 font-mono text-[11px] uppercase tracking-wider text-caption-foreground">

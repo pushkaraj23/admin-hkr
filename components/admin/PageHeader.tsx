@@ -19,7 +19,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "relative overflow-hidden rounded-[1.75rem] border border-border/80 bg-card/70 p-7 shadow-elevated-md backdrop-blur-md md:p-9",
+        "relative overflow-hidden rounded-[1.25rem] border border-border/70 bg-card/65 p-4 shadow-elevated-sm backdrop-blur-md md:p-5",
         className,
       )}
     >
@@ -28,16 +28,16 @@ export function PageHeader({
         style={{ background: "var(--aura-glow-a)" }}
         aria-hidden
       />
-      <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="relative flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.32em] text-primary-mid">
             {eyebrow}
           </p>
-          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          <h1 className="mt-1.5 font-display text-2xl font-bold tracking-tight text-foreground md:text-3xl">
             {title}
           </h1>
           {subtitle ? (
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">{subtitle}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
           ) : null}
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
