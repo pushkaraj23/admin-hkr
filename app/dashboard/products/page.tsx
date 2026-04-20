@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
+import { parseBoolean, parseCsv, splitMulti } from "@/lib/admin/csv";
 import type { CatalogProduct, ProductAvailability } from "@/lib/types/catalog";
 
 type ProductRow = CatalogProduct & Record<string, unknown>;
@@ -11,10 +12,16 @@ type CatRow = { slug: string; name: string };
 
 const AVAIL: ProductAvailability[] = ["In stock", "Made to order", "Limited lots", "Quote required"];
 
+const PRODUCT_SAMPLE_CSV = [
+  "id,slug,imageUrl,catalogNumber,categorySlug,chemicalName,casNumber,molecularFormula,molecularWeight,purity,appearance,shortDescription,detailedDescription,applications,storageConditions,packSizes,availability,datasheetUrl,coaAvailable,sdsAvailable,relatedSlugs",
+  'prod-hkr-carb-001,hkr-carb-001,https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200,HKR-CARB-001,carbohydrates,Example Chemical,572-09-8,C14H19BrO9,411.20 g/mol,>=98%,Off-white solid,Short description,Detailed description,"Glycosylation|Route scouting",-20 C under inert atmosphere,"100 mg|500 mg",In stock,https://example.com/datasheet.pdf,true,true,"hkr-carb-002|hkr-carb-003"',
+].join("\n");
+
 function emptyProduct(): CatalogProduct {
   return {
     id: "",
     slug: "",
+    imageUrl: "",
     catalogNumber: "",
     categorySlug: "",
     chemicalName: "",
@@ -40,9 +47,14 @@ export default function ProductsAdminPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [categories, setCategories] = useState<CatRow[]>([]);
   const [form, setForm] = useState<CatalogProduct>(emptyProduct());
+  const [search, setSearch] = useState("");
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [detailMode, setDetailMode] = useState<"view" | "edit" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const [missingSa, setMissingSa] = useState(false);
 
   const load = useCallback(async () => {
@@ -82,6 +94,7 @@ export default function ProductsAdminPage() {
     setForm({
       id: String(p.id ?? p.slug),
       slug: String(p.slug),
+      imageUrl: String(p.imageUrl ?? ""),
       catalogNumber: String(p.catalogNumber ?? ""),
       categorySlug: String(p.categorySlug ?? ""),
       chemicalName: String(p.chemicalName ?? ""),
@@ -103,6 +116,19 @@ export default function ProductsAdminPage() {
       sdsAvailable: Boolean(p.sdsAvailable),
       relatedSlugs: Array.isArray(p.relatedSlugs) ? [...p.relatedSlugs] : [],
     });
+    setActiveSlug(String(p.slug));
+    setDetailMode("edit");
+  }
+
+  function view(p: ProductRow) {
+    setActiveSlug(String(p.slug));
+    setDetailMode("view");
+  }
+
+  function createNew() {
+    setForm(emptyProduct());
+    setActiveSlug(null);
+    setDetailMode("create");
   }
 
   async function save(e: React.FormEvent) {
@@ -126,6 +152,8 @@ export default function ProductsAdminPage() {
       });
       await load();
       setForm(emptyProduct());
+      setActiveSlug(null);
+      setDetailMode(null);
     } catch (err) {
       if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
         setMissingSa(true);
@@ -142,7 +170,11 @@ export default function ProductsAdminPage() {
     try {
       await adminApi(`/api/admin/products?slug=${encodeURIComponent(slug)}`, { method: "DELETE" });
       await load();
-      if (form.slug === slug) setForm(emptyProduct());
+      if (form.slug === slug || activeSlug === slug) {
+        setForm(emptyProduct());
+        setActiveSlug(null);
+        setDetailMode(null);
+      }
     } catch (err) {
       if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
         setMissingSa(true);
@@ -150,6 +182,77 @@ export default function ProductsAdminPage() {
       setError(err instanceof Error ? err.message : "Delete failed");
     }
   }
+
+  async function importCsv(file: File) {
+    setImporting(true);
+    setError(null);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const records = parseCsv(text);
+      const rows = records.map((r) => ({
+        id: String(r.id ?? "").trim(),
+        slug: String(r.slug ?? "").trim().toLowerCase().replace(/\s+/g, "-"),
+        imageUrl: String(r.imageUrl ?? "").trim(),
+        catalogNumber: String(r.catalogNumber ?? "").trim(),
+        categorySlug: String(r.categorySlug ?? "").trim(),
+        chemicalName: String(r.chemicalName ?? "").trim(),
+        casNumber: String(r.casNumber ?? "").trim(),
+        molecularFormula: String(r.molecularFormula ?? "").trim(),
+        molecularWeight: String(r.molecularWeight ?? "").trim(),
+        purity: String(r.purity ?? "").trim(),
+        appearance: String(r.appearance ?? "").trim(),
+        shortDescription: String(r.shortDescription ?? "").trim(),
+        detailedDescription: String(r.detailedDescription ?? "").trim(),
+        applications: splitMulti(String(r.applications ?? "")),
+        storageConditions: String(r.storageConditions ?? "").trim(),
+        packSizes: splitMulti(String(r.packSizes ?? "")),
+        availability: String(r.availability ?? "Quote required").trim(),
+        datasheetUrl: String(r.datasheetUrl ?? "").trim(),
+        coaAvailable: parseBoolean(String(r.coaAvailable ?? "")),
+        sdsAvailable: parseBoolean(String(r.sdsAvailable ?? "")),
+        relatedSlugs: splitMulti(String(r.relatedSlugs ?? "")),
+      }));
+      const res = await adminApi<{ imported: number }>("/api/admin/products", {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      });
+      setImportResult(`Imported ${res.imported ?? 0} products.`);
+      await load();
+    } catch (err) {
+      if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
+        setMissingSa(true);
+      }
+      setError(err instanceof Error ? err.message : "CSV import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function downloadSampleCsv() {
+    const blob = new Blob([PRODUCT_SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "products-sample.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => {
+      const haystack = `${p.catalogNumber} ${p.slug} ${p.chemicalName} ${p.categorySlug} ${p.casNumber ?? ""}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [products, search]);
+  const activeProduct = useMemo(
+    () => (activeSlug ? products.find((p) => String(p.slug) === activeSlug) ?? null : null),
+    [activeSlug, products],
+  );
 
   return (
     <div className="space-y-10">
@@ -173,9 +276,64 @@ export default function ProductsAdminPage() {
       {error ? (
         <p className="rounded-xl border border-danger/30 bg-tint-danger/40 px-4 py-3 text-sm text-danger">{error}</p>
       ) : null}
+      {importResult ? (
+        <p className="rounded-xl border border-primary/25 bg-tint-primary/20 px-4 py-3 text-sm text-foreground">{importResult}</p>
+      ) : null}
+
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-elevated-sm">
+        <h2 className="font-display text-lg font-semibold text-foreground">Import from CSV</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Required columns: <code className="font-mono text-xs">slug</code>, <code className="font-mono text-xs">catalogNumber</code>, <code className="font-mono text-xs">categorySlug</code>, <code className="font-mono text-xs">chemicalName</code>.
+          Optional fields match product form keys (including <code className="font-mono text-xs">imageUrl</code>). Multi-value fields (<code className="font-mono text-xs">applications</code>, <code className="font-mono text-xs">packSizes</code>, <code className="font-mono text-xs">relatedSlugs</code>) should use <code className="font-mono text-xs">|</code>.
+          Booleans for <code className="font-mono text-xs">coaAvailable</code>/<code className="font-mono text-xs">sdsAvailable</code> accept <code className="font-mono text-xs">true/false</code>, <code className="font-mono text-xs">yes/no</code>, or <code className="font-mono text-xs">1/0</code>.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground hover:border-primary/30 hover:text-foreground">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              disabled={importing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importCsv(file);
+                e.currentTarget.value = "";
+              }}
+            />
+            {importing ? "Importing..." : "Upload CSV"}
+          </label>
+          <button
+            type="button"
+            onClick={downloadSampleCsv}
+            className="inline-flex items-center rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
+          >
+            Download sample CSV
+          </button>
+        </div>
+      </section>
 
       <section>
-        <h2 className="font-display text-lg font-semibold text-foreground">Catalogue entries</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-foreground">Catalogue entries</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Search and open details only when needed.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search SKU, slug, name, category, CAS..."
+              className="w-80 rounded-full border border-input bg-background px-4 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
+            />
+            <button
+              type="button"
+              onClick={createNew}
+              className="rounded-full bg-cta-gradient-diagonal px-5 py-2 text-sm font-semibold text-primary-foreground shadow-primary-glow"
+            >
+              Add product
+            </button>
+          </div>
+        </div>
         <div className="mt-4 max-h-[320px] overflow-auto rounded-2xl border border-border">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="sticky top-0 bg-muted/80 font-mono text-[11px] uppercase tracking-wider text-caption-foreground backdrop-blur">
@@ -184,37 +342,39 @@ export default function ProductsAdminPage() {
                 <th className="px-3 py-2">Slug</th>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Category</th>
-                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
+              ) : filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                    No products found.
+                  </td>
+                </tr>
               ) : (
-                products.map((p) => (
-                  <tr key={String(p.slug)} className="bg-card">
+                filteredProducts.map((p) => (
+                  <tr
+                    key={String(p.slug)}
+                    onClick={() => view(p)}
+                    className="group cursor-pointer bg-card transition-colors hover:bg-tint-primary/15"
+                  >
                     <td className="px-3 py-2 font-mono text-xs">{p.catalogNumber}</td>
                     <td className="px-3 py-2 font-mono text-xs">{p.slug}</td>
                     <td className="max-w-[200px] truncate px-3 py-2" title={p.chemicalName}>
-                      {p.chemicalName}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate">{p.chemicalName}</span>
+                        <span className="shrink-0 text-caption-foreground transition-transform duration-200 group-hover:translate-x-0.5">
+                          →
+                        </span>
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-caption-foreground">{p.categorySlug}</td>
-                    <td className="px-3 py-2 text-right">
-                      <button type="button" onClick={() => pick(p)} className="mr-2 text-primary hover:underline">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void remove(String(p.slug))}
-                        className="text-danger hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
                   </tr>
                 ))
               )}
@@ -223,8 +383,82 @@ export default function ProductsAdminPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-elevated-sm">
-        <h2 className="font-display text-lg font-semibold text-foreground">Add or update product</h2>
+      {detailMode === "view" && activeProduct ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,14,27,0.62)] p-4 backdrop-blur-sm" onClick={() => {
+          setActiveSlug(null);
+          setDetailMode(null);
+        }}>
+        <section className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-elevated-md" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold text-foreground">Product details</h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => pick(activeProduct)}
+                className="rounded-full border border-primary/35 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => void remove(String(activeProduct.slug))}
+                className="rounded-full border border-danger/35 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSlug(null);
+                  setDetailMode(null);
+                }}
+                className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            <DetailItem label="SKU" value={String(activeProduct.catalogNumber ?? "—")} mono />
+            <DetailItem label="Slug" value={String(activeProduct.slug ?? "—")} mono />
+            <DetailItem label="Chemical name" value={String(activeProduct.chemicalName ?? "—")} />
+            <DetailItem label="Category" value={String(activeProduct.categorySlug ?? "—")} />
+            <DetailItem label="CAS" value={String(activeProduct.casNumber ?? "—")} />
+            <DetailItem label="Availability" value={String(activeProduct.availability ?? "—")} />
+            <DetailItem label="Formula" value={String(activeProduct.molecularFormula ?? "—")} />
+            <DetailItem label="Mol. weight" value={String(activeProduct.molecularWeight ?? "—")} />
+            <DetailItem label="Purity" value={String(activeProduct.purity ?? "—")} />
+            <DetailItem label="Appearance" value={String(activeProduct.appearance ?? "—")} />
+            <DetailItem label="Storage" value={String(activeProduct.storageConditions ?? "—")} />
+            <DetailItem label="Datasheet URL" value={String(activeProduct.datasheetUrl ?? "—")} />
+          </dl>
+        </section>
+        </div>
+      ) : null}
+
+      {detailMode === "edit" || detailMode === "create" ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,14,27,0.62)] p-4 backdrop-blur-sm" onClick={() => {
+          setDetailMode(null);
+          setActiveSlug(null);
+          setForm(emptyProduct());
+        }}>
+        <section className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-elevated-md" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold text-foreground">
+              {detailMode === "create" ? "Add product" : "Edit product"}
+            </h2>
+            <button
+              type="button"
+              onClick={() => {
+                setDetailMode(null);
+                setActiveSlug(null);
+                setForm(emptyProduct());
+              }}
+              className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Close
+            </button>
+          </div>
         <form onSubmit={save} className="mt-4 grid gap-3 md:grid-cols-2">
           <div>
             <label className="text-xs font-semibold uppercase text-caption-foreground">Slug</label>
@@ -251,6 +485,15 @@ export default function ProductsAdminPage() {
               value={form.catalogNumber}
               onChange={(e) => setForm((f) => ({ ...f, catalogNumber: e.target.value }))}
               className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-caption-foreground">Image URL</label>
+            <input
+              value={form.imageUrl ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
+              placeholder="https://..."
             />
           </div>
           <div>
@@ -443,7 +686,11 @@ export default function ProductsAdminPage() {
             </button>
             <button
               type="button"
-              onClick={() => setForm(emptyProduct())}
+              onClick={() => {
+                setForm(emptyProduct());
+                setActiveSlug(null);
+                setDetailMode("create");
+              }}
               className="rounded-full border border-border px-6 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
               Clear form
@@ -451,6 +698,17 @@ export default function ProductsAdminPage() {
           </div>
         </form>
       </section>
+      </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DetailItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border/80 bg-background/40 p-3">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-caption-foreground">{label}</dt>
+      <dd className={`mt-1 text-sm text-foreground ${mono ? "font-mono text-xs" : ""}`}>{value || "—"}</dd>
     </div>
   );
 }

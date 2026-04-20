@@ -9,6 +9,7 @@ export type ProductAvailability =
 export type ProductCategory = {
   slug: string;
   name: string;
+  imageUrl?: string;
   tagline: string;
   description: string;
   overview: string;
@@ -19,6 +20,7 @@ export type ProductCategory = {
 export type CatalogProduct = {
   id: string;
   slug: string;
+  imageUrl?: string;
   catalogNumber: string;
   categorySlug: string;
   chemicalName: string;
