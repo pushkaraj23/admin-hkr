@@ -27,6 +27,7 @@ export default function UsersAdminPage() {
   const [creating, setCreating] = useState(false);
   const [missingSa, setMissingSa] = useState(false);
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
+  const [deletingUid, setDeletingUid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +97,26 @@ export default function UsersAdminPage() {
       setError(err instanceof Error ? err.message : "Update failed");
     } finally {
       setUpdatingUid(null);
+    }
+  }
+
+  async function deleteUser(row: Row) {
+    if (!row.uid) return;
+    const label = row.email ?? row.displayName ?? row.uid;
+    const confirmed = window.confirm(`Delete user "${label}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingUid(row.uid);
+    setError(null);
+    try {
+      await adminApi(`/api/admin/users/${encodeURIComponent(row.uid)}`, {
+        method: "DELETE",
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeletingUid(null);
     }
   }
 
@@ -187,7 +208,7 @@ export default function UsersAdminPage() {
           page or sign out and back in.
         </p>
         <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[780px] text-left text-sm">
             <thead className="bg-muted/50 font-mono text-[11px] uppercase tracking-wider text-caption-foreground">
               <tr>
                 <th className="px-4 py-3">Email</th>
@@ -196,18 +217,19 @@ export default function UsersAdminPage() {
                 <th className="px-4 py-3">UID</th>
                 <th className="px-4 py-3">Created</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No users returned.
                   </td>
                 </tr>
@@ -215,6 +237,7 @@ export default function UsersAdminPage() {
                 users.map((u) => {
                   const busy = updatingUid === u.uid;
                   const isSelf = currentUser?.uid === u.uid;
+                  const deleting = deletingUid === u.uid;
                   return (
                     <tr key={u.uid} className="bg-card">
                       <td className="px-4 py-3 text-foreground">{u.email ?? "—"}</td>
@@ -236,6 +259,17 @@ export default function UsersAdminPage() {
                       <td className="px-4 py-3 font-mono text-xs text-caption-foreground">{u.uid}</td>
                       <td className="px-4 py-3 text-caption-foreground">{u.creationTime ?? "—"}</td>
                       <td className="px-4 py-3">{u.disabled ? "Disabled" : "Active"}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void deleteUser(u)}
+                          disabled={busy || deleting || isSelf}
+                          title={isSelf ? "You cannot delete your own account" : undefined}
+                          className="rounded-lg border border-danger/40 px-3 py-1.5 text-xs font-semibold text-danger transition hover:bg-tint-danger/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deleting ? "Deleting…" : "Delete"}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
