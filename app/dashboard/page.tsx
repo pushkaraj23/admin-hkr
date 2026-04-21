@@ -15,7 +15,6 @@ export default function DashboardHomePage() {
     enquiries: null,
   });
   const [saConfigured, setSaConfigured] = useState<boolean | null>(null);
-  const [prodEmails, setProdEmails] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<{
     rows: Array<{
@@ -47,12 +46,10 @@ export default function DashboardHomePage() {
         const statusRes = await fetch("/api/admin/status");
         const status = (await statusRes.json()) as {
           serviceAccountConfigured: boolean;
-          adminEmailsConfigured: boolean;
           production: boolean;
         };
         if (!cancelled) {
           setSaConfigured(status.serviceAccountConfigured);
-          setProdEmails(status.production && !status.adminEmailsConfigured);
         }
 
         const catCounts = await fetchCatalogDocumentCounts();
@@ -242,12 +239,6 @@ export default function DashboardHomePage() {
         title="Catalogue & access"
         subtitle="Control catalogue content and team access from one place when admin credentials are configured."
       />
-
-      {prodEmails ? (
-        <p className="max-w-2xl rounded-xl border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground">
-          Production mode: set <code className="font-mono text-xs">ADMIN_EMAILS</code> to restrict who can use this panel.
-        </p>
-      ) : null}
 
       {showSaHint ? <SetupCredentialsCallout /> : null}
 

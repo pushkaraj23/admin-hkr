@@ -13,11 +13,16 @@ export class AdminApiError extends Error {
   }
 }
 
-export async function getAdminIdToken(): Promise<string | null> {
+export async function getAdminIdToken(forceRefresh = false): Promise<string | null> {
   const auth = getFirebaseAuth();
   const u = auth.currentUser;
   if (!u) return null;
-  return u.getIdToken();
+  return u.getIdToken(forceRefresh);
+}
+
+/** Call after Admin role changes for the signed-in user so the next API call sends updated claims. */
+export async function refreshAdminIdToken(): Promise<void> {
+  await getAdminIdToken(true);
 }
 
 export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> {

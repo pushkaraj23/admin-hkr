@@ -19,7 +19,7 @@ export async function requireAdminRequest(req: Request): Promise<AdminAuthOk | A
     return { ok: false, response: jsonError("Missing Authorization bearer token", 401) };
   }
 
-  let decoded: { uid: string; email?: string };
+  let decoded: { uid: string; email?: string; isAdmin?: boolean };
 
   let useAdminSdk = false;
   try {
@@ -49,14 +49,28 @@ export async function requireAdminRequest(req: Request): Promise<AdminAuthOk | A
     .filter(Boolean);
 
   const email = decoded.email?.toLowerCase();
+  const hasIsAdminClaim = decoded.isAdmin === true;
+
+  if (hasIsAdminClaim) {
+    return { ok: true, uid: decoded.uid, email: decoded.email };
+  }
 
   if (allow.length > 0) {
     if (!email || !allow.includes(email)) {
       return { ok: false, response: jsonError("Email is not in ADMIN_EMAILS allowlist", 403) };
     }
-  } else if (process.env.NODE_ENV === "production") {
-    return { ok: false, response: jsonError("Set ADMIN_EMAILS in production", 403) };
+    return { ok: true, uid: decoded.uid, email: decoded.email };
   }
 
-  return { ok: true, uid: decoded.uid, email: decoded.email };
+  if (process.env.NODE_ENV !== "production") {
+    return { ok: true, uid: decoded.uid, email: decoded.email };
+  }
+
+  return {
+    ok: false,
+    response: jsonError(
+      "Account does not have Admin access. An existing admin can enable it on the Users page, or set ADMIN_EMAILS for initial bootstrap.",
+      403,
+    ),
+  };
 }

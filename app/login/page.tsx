@@ -61,8 +61,9 @@ export default function LoginPage() {
         </div>
         <h1 className="text-center font-display text-2xl font-bold text-foreground">Admin login</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in with a Firebase account allowed in{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">ADMIN_EMAILS</code>.
+          Sign in with a Firebase account that has <span className="font-medium text-foreground">Admin</span> enabled
+          (set on the Users page), or listed in{" "}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">ADMIN_EMAILS</code> for bootstrap.
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4">

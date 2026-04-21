@@ -10,7 +10,9 @@ const jwks = createRemoteJWKSet(
  * Verifies a Firebase ID token using Google's public keys.
  * Use when Firebase Admin SDK is not configured (no service account).
  */
-export async function verifyFirebaseIdTokenPublic(idToken: string): Promise<{ uid: string; email?: string }> {
+export async function verifyFirebaseIdTokenPublic(
+  idToken: string,
+): Promise<{ uid: string; email?: string; isAdmin?: boolean }> {
   const projectId = firebaseBrowserConfig.projectId;
   if (!projectId) {
     throw new Error("NEXT_PUBLIC_FIREBASE_PROJECT_ID is not set");
@@ -28,5 +30,7 @@ export async function verifyFirebaseIdTokenPublic(idToken: string): Promise<{ ui
   }
 
   const email = typeof payload.email === "string" ? payload.email : undefined;
-  return { uid, email };
+  const claims = payload as Record<string, unknown>;
+  const isAdmin = claims.isAdmin === true;
+  return { uid, email, isAdmin };
 }
