@@ -265,7 +265,7 @@ export default function ProductsAdminPage() {
           <button
             type="button"
             onClick={() => void load()}
-            className="rounded-full border border-border bg-background/60 px-5 py-2 text-sm font-semibold text-muted-foreground transition hover:border-primary/30 hover:bg-tint-primary/20 hover:text-foreground"
+            className="rounded-full border border-white/25 bg-white/10 px-5 py-2 text-sm font-semibold text-on-dark-muted transition hover:border-white/40 hover:bg-white/16 hover:text-on-dark"
           >
             Refresh list
           </button>

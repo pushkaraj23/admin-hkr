@@ -7,13 +7,13 @@ type Props = {
 export function SetupCredentialsCallout({ variant = "banner" }: Props) {
   const box =
     variant === "banner"
-      ? "rounded-2xl border border-primary/25 bg-gradient-to-br from-tint-primary/40 via-card to-tint-accent/20 p-6 shadow-elevated-sm"
+      ? "rounded-2xl border border-primary/20 bg-gradient-to-br from-tint-primary/50 via-card to-tint-accent/35 p-6 shadow-elevated-sm"
       : "rounded-xl border border-border bg-muted/30 p-4";
 
   return (
     <div className={box}>
       <div className="flex gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent/25 bg-tint-accent text-accent">
           <IconKey className="h-5 w-5" />
         </div>
         <div className="min-w-0 space-y-2">
