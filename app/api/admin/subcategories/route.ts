@@ -11,16 +11,20 @@ export async function GET(req: Request) {
   if (sa) return sa;
   try {
     const db = getAdminFirestore();
-    const snap = await db.collection("categories").get();
-    const categories = snap.docs.map((d) => ({ slug: d.id, ...d.data() })) as {
+    const snap = await db.collection("subcategories").get();
+    const subcategories = snap.docs.map((d) => ({ slug: d.id, ...d.data() })) as {
       slug: string;
+      categorySlug?: string;
       order?: number;
       name?: string;
     }[];
-    categories.sort(
-      (a, b) => (a.order ?? 0) - (b.order ?? 0) || String(a.name ?? "").localeCompare(String(b.name ?? "")),
+    subcategories.sort(
+      (a, b) =>
+        (a.order ?? 0) - (b.order ?? 0) ||
+        String(a.categorySlug ?? "").localeCompare(String(b.categorySlug ?? "")) ||
+        String(a.name ?? "").localeCompare(String(b.name ?? "")),
     );
-    return NextResponse.json({ categories });
+    return NextResponse.json({ subcategories });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
@@ -33,22 +37,22 @@ export async function PUT(req: Request) {
   if (sa) return sa;
   const body = (await req.json()) as Record<string, unknown>;
   const slug = String(body.slug ?? "").trim();
+  const categorySlug = String(body.categorySlug ?? "").trim();
   if (!slug) {
     return NextResponse.json({ error: "slug required" }, { status: 400 });
   }
-  const highlights = Array.isArray(body.highlights) ? body.highlights.map(String) : [];
+  if (!categorySlug) {
+    return NextResponse.json({ error: "categorySlug required" }, { status: 400 });
+  }
   const payload = {
     slug,
+    categorySlug,
     name: String(body.name ?? ""),
-    imageUrl: body.imageUrl ? String(body.imageUrl) : "",
-    tagline: String(body.tagline ?? ""),
-    description: String(body.description ?? ""),
-    overview: String(body.overview ?? ""),
-    highlights,
+    description: body.description ? String(body.description) : "",
     order: typeof body.order === "number" ? body.order : 0,
     updatedAt: FieldValue.serverTimestamp(),
   };
-  await getAdminFirestore().collection("categories").doc(slug).set(payload, { merge: true });
+  await getAdminFirestore().collection("subcategories").doc(slug).set(payload, { merge: true });
   return NextResponse.json({ ok: true });
 }
 
@@ -73,26 +77,24 @@ export async function POST(req: Request) {
 
   for (const row of rows) {
     const slug = String(row.slug ?? "").trim();
+    const categorySlug = String(row.categorySlug ?? "").trim();
     const name = String(row.name ?? "").trim();
-    if (!slug || !name) continue;
+    if (!slug || !categorySlug || !name) continue;
 
     const payload = {
       slug,
+      categorySlug,
       name,
-      imageUrl: row.imageUrl ? String(row.imageUrl) : "",
-      tagline: String(row.tagline ?? ""),
-      description: String(row.description ?? ""),
-      overview: String(row.overview ?? ""),
-      highlights: Array.isArray(row.highlights) ? row.highlights.map(String) : [],
+      description: row.description ? String(row.description) : "",
       order: typeof row.order === "number" ? row.order : 0,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    batch.set(db.collection("categories").doc(slug), payload, { merge: true });
+    batch.set(db.collection("subcategories").doc(slug), payload, { merge: true });
     imported += 1;
   }
 
   if (imported === 0) {
-    return NextResponse.json({ error: "No valid rows (slug and name are required)." }, { status: 400 });
+    return NextResponse.json({ error: "No valid rows (slug, categorySlug, and name are required)." }, { status: 400 });
   }
 
   await batch.commit();
@@ -104,37 +106,11 @@ export async function DELETE(req: Request) {
   if (!auth.ok) return auth.response;
   const sa = assertServiceAccount();
   if (sa) return sa;
-
   const url = new URL(req.url);
-  const slugParam = url.searchParams.get("slug");
-
-  let slugs: string[] = [];
-  if (slugParam) {
-    slugs = [slugParam.trim()];
-  } else {
-    try {
-      const body = (await req.json()) as { slugs?: unknown };
-      if (Array.isArray(body.slugs)) {
-        slugs = body.slugs.map((s) => String(s).trim()).filter(Boolean);
-      }
-    } catch {
-      /* bulk delete expects { slugs: string[] } */
-    }
+  const slug = url.searchParams.get("slug");
+  if (!slug) {
+    return NextResponse.json({ error: "slug required" }, { status: 400 });
   }
-
-  slugs = [...new Set(slugs)];
-  if (slugs.length === 0) {
-    return NextResponse.json({ error: "slug or slugs required" }, { status: 400 });
-  }
-  if (slugs.length > 500) {
-    return NextResponse.json({ error: "Too many categories. Max 500 per bulk delete." }, { status: 400 });
-  }
-
-  const db = getAdminFirestore();
-  const batch = db.batch();
-  for (const slug of slugs) {
-    batch.delete(db.collection("categories").doc(slug));
-  }
-  await batch.commit();
-  return NextResponse.json({ ok: true, deleted: slugs.length });
+  await getAdminFirestore().collection("subcategories").doc(slug).delete();
+  return NextResponse.json({ ok: true });
 }

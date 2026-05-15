@@ -9,12 +9,13 @@ import type { CatalogProduct, ProductAvailability } from "@/lib/types/catalog";
 
 type ProductRow = CatalogProduct & Record<string, unknown>;
 type CatRow = { slug: string; name: string };
+type SubRow = { slug: string; name: string; categorySlug: string };
 
 const AVAIL: ProductAvailability[] = ["In stock", "Made to order", "Limited lots", "Quote required"];
 
 const PRODUCT_SAMPLE_CSV = [
-  "id,slug,imageUrl,catalogNumber,categorySlug,chemicalName,casNumber,molecularFormula,molecularWeight,purity,appearance,shortDescription,detailedDescription,applications,storageConditions,packSizes,availability,datasheetUrl,coaAvailable,sdsAvailable,relatedSlugs",
-  'prod-hkr-carb-001,hkr-carb-001,https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200,HKR-CARB-001,carbohydrates,Example Chemical,572-09-8,C14H19BrO9,411.20 g/mol,>=98%,Off-white solid,Short description,Detailed description,"Glycosylation|Route scouting",-20 C under inert atmosphere,"100 mg|500 mg",In stock,https://example.com/datasheet.pdf,true,true,"hkr-carb-002|hkr-carb-003"',
+  "id,slug,imageUrl,catalogNumber,categorySlug,subcategorySlug,chemicalName,casNumber,molecularFormula,molecularWeight,purity,appearance,shortDescription,detailedDescription,applications,storageConditions,packSizes,availability,datasheetUrl,coaAvailable,sdsAvailable,relatedSlugs",
+  'prod-hkr-carb-001,hkr-carb-001,https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200,HKR-CARB-001,carbohydrates,monosaccharides,Example Chemical,572-09-8,C14H19BrO9,411.20 g/mol,>=98%,Off-white solid,Short description,Detailed description,"Glycosylation|Route scouting",-20 C under inert atmosphere,"100 mg|500 mg",In stock,https://example.com/datasheet.pdf,true,true,"hkr-carb-002|hkr-carb-003"',
 ].join("\n");
 
 function emptyProduct(): CatalogProduct {
@@ -24,6 +25,7 @@ function emptyProduct(): CatalogProduct {
     imageUrl: "",
     catalogNumber: "",
     categorySlug: "",
+    subcategorySlug: "",
     chemicalName: "",
     casNumber: "",
     molecularFormula: "",
@@ -46,6 +48,7 @@ function emptyProduct(): CatalogProduct {
 export default function ProductsAdminPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [categories, setCategories] = useState<CatRow[]>([]);
+  const [subcategories, setSubcategories] = useState<SubRow[]>([]);
   const [form, setForm] = useState<CatalogProduct>(emptyProduct());
   const [search, setSearch] = useState("");
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
@@ -56,16 +59,20 @@ export default function ProductsAdminPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [missingSa, setMissingSa] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     setMissingSa(false);
     try {
-      const [p, c] = await Promise.all([
+      const [p, c, s] = await Promise.all([
         adminApi<{ products: ProductRow[] }>("/api/admin/products"),
         adminApi<{ categories: CatRow[] }>("/api/admin/categories"),
+        adminApi<{ subcategories: SubRow[] }>("/api/admin/subcategories"),
       ]);
       setProducts(p.products ?? []);
       setCategories(
@@ -74,11 +81,19 @@ export default function ProductsAdminPage() {
           name: String(x.name ?? x.slug ?? ""),
         })),
       );
+      setSubcategories(
+        (s.subcategories ?? []).map((x) => ({
+          slug: String(x.slug ?? ""),
+          name: String(x.name ?? x.slug ?? ""),
+          categorySlug: String(x.categorySlug ?? ""),
+        })),
+      );
     } catch (e) {
       if (e instanceof AdminApiError && e.code === "MISSING_SERVICE_ACCOUNT") {
         setMissingSa(true);
         setProducts([]);
         setCategories([]);
+        setSubcategories([]);
       } else {
         setError(e instanceof Error ? e.message : "Load failed");
       }
@@ -98,6 +113,7 @@ export default function ProductsAdminPage() {
       imageUrl: String(p.imageUrl ?? ""),
       catalogNumber: String(p.catalogNumber ?? ""),
       categorySlug: String(p.categorySlug ?? ""),
+      subcategorySlug: String(p.subcategorySlug ?? ""),
       chemicalName: String(p.chemicalName ?? ""),
       casNumber: String(p.casNumber ?? ""),
       molecularFormula: String(p.molecularFormula ?? ""),
@@ -165,22 +181,92 @@ export default function ProductsAdminPage() {
     }
   }
 
+  function clearSelection() {
+    setSelectedSlugs(new Set());
+  }
+
+  function toggleSelect(slug: string) {
+    setSelectedSlugs((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    const slugs = filteredProducts.map((p) => String(p.slug));
+    const allSelected = slugs.length > 0 && slugs.every((s) => selectedSlugs.has(s));
+    setSelectedSlugs((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const s of slugs) next.delete(s);
+      } else {
+        for (const s of slugs) next.add(s);
+      }
+      return next;
+    });
+  }
+
+  function closeDetailIfDeleted(slugs: string[]) {
+    const deleted = new Set(slugs);
+    if (activeSlug && deleted.has(activeSlug)) {
+      setActiveSlug(null);
+      setDetailMode(null);
+    }
+    if (form.slug && deleted.has(form.slug)) {
+      setForm(emptyProduct());
+    }
+  }
+
   async function remove(slug: string) {
     if (!confirm(`Delete product "${slug}"?`)) return;
     setError(null);
     try {
       await adminApi(`/api/admin/products?slug=${encodeURIComponent(slug)}`, { method: "DELETE" });
       await load();
-      if (form.slug === slug || activeSlug === slug) {
-        setForm(emptyProduct());
-        setActiveSlug(null);
-        setDetailMode(null);
-      }
+      setSelectedSlugs((prev) => {
+        if (!prev.has(slug)) return prev;
+        const next = new Set(prev);
+        next.delete(slug);
+        return next;
+      });
+      closeDetailIfDeleted([slug]);
     } catch (err) {
       if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
         setMissingSa(true);
       }
       setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  async function bulkRemove() {
+    const slugs = [...selectedSlugs];
+    if (slugs.length === 0) return;
+    const label =
+      slugs.length === 1
+        ? `Delete product "${slugs[0]}"?`
+        : `Delete ${slugs.length} selected products? This cannot be undone.`;
+    if (!confirm(label)) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await adminApi<{ deleted: number }>("/api/admin/products", {
+        method: "DELETE",
+        body: JSON.stringify({ slugs }),
+      });
+      await load();
+      clearSelection();
+      closeDetailIfDeleted(slugs);
+      setImportResult(`Deleted ${res.deleted ?? slugs.length} product(s).`);
+    } catch (err) {
+      if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
+        setMissingSa(true);
+      }
+      setError(err instanceof Error ? err.message : "Bulk delete failed");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -197,6 +283,7 @@ export default function ProductsAdminPage() {
         imageUrl: String(r.imageUrl ?? "").trim(),
         catalogNumber: String(r.catalogNumber ?? "").trim(),
         categorySlug: String(r.categorySlug ?? "").trim(),
+        subcategorySlug: String(r.subcategorySlug ?? "").trim(),
         chemicalName: String(r.chemicalName ?? "").trim(),
         casNumber: String(r.casNumber ?? "").trim(),
         molecularFormula: String(r.molecularFormula ?? "").trim(),
@@ -242,6 +329,11 @@ export default function ProductsAdminPage() {
     URL.revokeObjectURL(url);
   }
 
+  const formSubcategories = useMemo(
+    () => subcategories.filter((s) => s.categorySlug === form.categorySlug),
+    [form.categorySlug, subcategories],
+  );
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return products;
@@ -254,6 +346,39 @@ export default function ProductsAdminPage() {
     () => (activeSlug ? products.find((p) => String(p.slug) === activeSlug) ?? null : null),
     [activeSlug, products],
   );
+
+  const filteredSlugs = useMemo(
+    () => filteredProducts.map((p) => String(p.slug)),
+    [filteredProducts],
+  );
+
+  const selectedCount = selectedSlugs.size;
+  const selectedInFilterCount = useMemo(
+    () => filteredSlugs.filter((s) => selectedSlugs.has(s)).length,
+    [filteredSlugs, selectedSlugs],
+  );
+  const allFilteredSelected =
+    filteredSlugs.length > 0 && selectedInFilterCount === filteredSlugs.length;
+  const someFilteredSelected =
+    selectedInFilterCount > 0 && selectedInFilterCount < filteredSlugs.length;
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (el) el.indeterminate = someFilteredSelected;
+  }, [someFilteredSelected]);
+
+  useEffect(() => {
+    const visible = new Set(filteredSlugs);
+    setSelectedSlugs((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const slug of prev) {
+        if (visible.has(slug)) next.add(slug);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [filteredSlugs]);
 
   return (
     <div className="space-y-6">
@@ -329,10 +454,57 @@ export default function ProductsAdminPage() {
             e.currentTarget.value = "";
           }}
         />
+        {selectedCount > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/25 bg-tint-danger/25 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">
+              <span className="font-semibold tabular-nums">{selectedCount}</span> product
+              {selectedCount === 1 ? "" : "s"} selected
+              {search.trim() && selectedInFilterCount !== selectedCount ? (
+                <span className="text-caption-foreground">
+                  {" "}
+                  ({selectedInFilterCount} in current search)
+                </span>
+              ) : null}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={deleting}
+                className="rounded-full border border-border bg-background/80 px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
+              >
+                Clear selection
+              </button>
+              <button
+                type="button"
+                onClick={() => void bulkRemove()}
+                disabled={deleting}
+                className="rounded-full border border-danger/40 bg-danger/15 px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger/25 disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : `Delete selected (${selectedCount})`}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="sticky top-0 bg-muted/80 font-mono text-[11px] uppercase tracking-wider text-caption-foreground backdrop-blur">
               <tr>
+                <th className="w-10 px-3 py-2">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAllFiltered}
+                    disabled={loading || filteredProducts.length === 0}
+                    aria-label={
+                      allFilteredSelected
+                        ? "Deselect all products in list"
+                        : "Select all products in list"
+                    }
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                </th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Slug</th>
                 <th className="px-3 py-2">Name</th>
@@ -342,23 +514,37 @@ export default function ProductsAdminPage() {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
                     No products found.
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => (
+                filteredProducts.map((p) => {
+                  const slug = String(p.slug);
+                  const checked = selectedSlugs.has(slug);
+                  return (
                   <tr
-                    key={String(p.slug)}
+                    key={slug}
                     onClick={() => view(p)}
-                    className="group cursor-pointer bg-card transition-colors hover:bg-tint-primary/15"
+                    className={`group cursor-pointer transition-colors hover:bg-tint-primary/15 ${
+                      checked ? "bg-tint-danger/12" : "bg-card"
+                    }`}
                   >
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSelect(slug)}
+                        aria-label={`Select ${p.chemicalName || slug}`}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs">{p.catalogNumber}</td>
                     <td className="px-3 py-2 font-mono text-xs">{p.slug}</td>
                     <td className="max-w-[200px] truncate px-3 py-2" title={p.chemicalName}>
@@ -371,7 +557,8 @@ export default function ProductsAdminPage() {
                     </td>
                     <td className="px-3 py-2 text-caption-foreground">{p.categorySlug}</td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -418,6 +605,7 @@ export default function ProductsAdminPage() {
             <DetailItem label="Slug" value={String(activeProduct.slug ?? "—")} mono />
             <DetailItem label="Chemical name" value={String(activeProduct.chemicalName ?? "—")} />
             <DetailItem label="Category" value={String(activeProduct.categorySlug ?? "—")} />
+            <DetailItem label="Subcategory" value={String(activeProduct.subcategorySlug ?? "—")} />
             <DetailItem label="CAS" value={String(activeProduct.casNumber ?? "—")} />
             <DetailItem label="Availability" value={String(activeProduct.availability ?? "—")} />
             <DetailItem label="Formula" value={String(activeProduct.molecularFormula ?? "—")} />
@@ -496,13 +684,41 @@ export default function ProductsAdminPage() {
             <select
               required
               value={form.categorySlug}
-              onChange={(e) => setForm((f) => ({ ...f, categorySlug: e.target.value }))}
+              onChange={(e) => {
+                const categorySlug = e.target.value;
+                setForm((f) => {
+                  const validSub = subcategories.some(
+                    (s) => s.slug === f.subcategorySlug && s.categorySlug === categorySlug,
+                  );
+                  return {
+                    ...f,
+                    categorySlug,
+                    subcategorySlug: validSub ? f.subcategorySlug : "",
+                  };
+                });
+              }}
               className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
             >
               <option value="">Select…</option>
               {categories.map((c) => (
                 <option key={c.slug} value={c.slug}>
                   {c.name} ({c.slug})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-caption-foreground">Subcategory</label>
+            <select
+              value={form.subcategorySlug ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, subcategorySlug: e.target.value }))}
+              disabled={!form.categorySlug || formSubcategories.length === 0}
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2 disabled:opacity-60"
+            >
+              <option value="">None</option>
+              {formSubcategories.map((s) => (
+                <option key={s.slug} value={s.slug}>
+                  {s.name} ({s.slug})
                 </option>
               ))}
             </select>

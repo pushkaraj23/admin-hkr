@@ -47,6 +47,7 @@ export async function PUT(req: Request) {
     imageUrl: body.imageUrl ? String(body.imageUrl) : "",
     catalogNumber: String(body.catalogNumber ?? ""),
     categorySlug: String(body.categorySlug ?? ""),
+    subcategorySlug: body.subcategorySlug ? String(body.subcategorySlug) : "",
     chemicalName: String(body.chemicalName ?? ""),
     casNumber: String(body.casNumber ?? ""),
     molecularFormula: String(body.molecularFormula ?? ""),
@@ -107,6 +108,7 @@ export async function POST(req: Request) {
       imageUrl: row.imageUrl ? String(row.imageUrl) : "",
       catalogNumber,
       categorySlug,
+      subcategorySlug: row.subcategorySlug ? String(row.subcategorySlug) : "",
       chemicalName,
       casNumber: String(row.casNumber ?? ""),
       molecularFormula: String(row.molecularFormula ?? ""),
@@ -146,11 +148,37 @@ export async function DELETE(req: Request) {
   if (!auth.ok) return auth.response;
   const sa = assertServiceAccount();
   if (sa) return sa;
+
   const url = new URL(req.url);
-  const slug = url.searchParams.get("slug");
-  if (!slug) {
-    return NextResponse.json({ error: "slug required" }, { status: 400 });
+  const slugParam = url.searchParams.get("slug");
+
+  let slugs: string[] = [];
+  if (slugParam) {
+    slugs = [slugParam.trim()];
+  } else {
+    try {
+      const body = (await req.json()) as { slugs?: unknown };
+      if (Array.isArray(body.slugs)) {
+        slugs = body.slugs.map((s) => String(s).trim()).filter(Boolean);
+      }
+    } catch {
+      /* no JSON body — bulk delete expects { slugs: string[] } */
+    }
   }
-  await getAdminFirestore().collection("products").doc(slug).delete();
-  return NextResponse.json({ ok: true });
+
+  slugs = [...new Set(slugs)];
+  if (slugs.length === 0) {
+    return NextResponse.json({ error: "slug or slugs required" }, { status: 400 });
+  }
+  if (slugs.length > 500) {
+    return NextResponse.json({ error: "Too many products. Max 500 per bulk delete." }, { status: 400 });
+  }
+
+  const db = getAdminFirestore();
+  const batch = db.batch();
+  for (const slug of slugs) {
+    batch.delete(db.collection("products").doc(slug));
+  }
+  await batch.commit();
+  return NextResponse.json({ ok: true, deleted: slugs.length });
 }

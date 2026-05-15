@@ -37,7 +37,10 @@ export default function CategoriesAdminPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [missingSa, setMissingSa] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,22 +117,92 @@ export default function CategoriesAdminPage() {
     }
   }
 
+  function clearSelection() {
+    setSelectedSlugs(new Set());
+  }
+
+  function toggleSelect(slug: string) {
+    setSelectedSlugs((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    const slugs = filteredRows.map((c) => c.slug);
+    const allSelected = slugs.length > 0 && slugs.every((s) => selectedSlugs.has(s));
+    setSelectedSlugs((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const s of slugs) next.delete(s);
+      } else {
+        for (const s of slugs) next.add(s);
+      }
+      return next;
+    });
+  }
+
+  function closeDetailIfDeleted(slugs: string[]) {
+    const deleted = new Set(slugs);
+    if (activeSlug && deleted.has(activeSlug)) {
+      setActiveSlug(null);
+      setDetailMode(null);
+    }
+    if (form.slug && deleted.has(form.slug)) {
+      setForm(empty());
+    }
+  }
+
   async function remove(slug: string) {
     if (!confirm(`Delete category "${slug}"?`)) return;
     setError(null);
     try {
       await adminApi(`/api/admin/categories?slug=${encodeURIComponent(slug)}`, { method: "DELETE" });
       await load();
-      if (form.slug === slug || activeSlug === slug) {
-        setForm(empty());
-        setActiveSlug(null);
-        setDetailMode(null);
-      }
+      setSelectedSlugs((prev) => {
+        if (!prev.has(slug)) return prev;
+        const next = new Set(prev);
+        next.delete(slug);
+        return next;
+      });
+      closeDetailIfDeleted([slug]);
     } catch (err) {
       if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
         setMissingSa(true);
       }
       setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  async function bulkRemove() {
+    const slugs = [...selectedSlugs];
+    if (slugs.length === 0) return;
+    const label =
+      slugs.length === 1
+        ? `Delete category "${slugs[0]}"?`
+        : `Delete ${slugs.length} selected categories? This cannot be undone.`;
+    if (!confirm(label)) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await adminApi<{ deleted: number }>("/api/admin/categories", {
+        method: "DELETE",
+        body: JSON.stringify({ slugs }),
+      });
+      await load();
+      clearSelection();
+      closeDetailIfDeleted(slugs);
+      setImportResult(`Deleted ${res.deleted ?? slugs.length} categor${slugs.length === 1 ? "y" : "ies"}.`);
+    } catch (err) {
+      if (err instanceof AdminApiError && err.code === "MISSING_SERVICE_ACCOUNT") {
+        setMissingSa(true);
+      }
+      setError(err instanceof Error ? err.message : "Bulk delete failed");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -146,6 +219,36 @@ export default function CategoriesAdminPage() {
     () => (activeSlug ? rows.find((row) => row.slug === activeSlug) ?? null : null),
     [activeSlug, rows],
   );
+
+  const filteredSlugs = useMemo(() => filteredRows.map((c) => c.slug), [filteredRows]);
+
+  const selectedCount = selectedSlugs.size;
+  const selectedInFilterCount = useMemo(
+    () => filteredSlugs.filter((s) => selectedSlugs.has(s)).length,
+    [filteredSlugs, selectedSlugs],
+  );
+  const allFilteredSelected =
+    filteredSlugs.length > 0 && selectedInFilterCount === filteredSlugs.length;
+  const someFilteredSelected =
+    selectedInFilterCount > 0 && selectedInFilterCount < filteredSlugs.length;
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (el) el.indeterminate = someFilteredSelected;
+  }, [someFilteredSelected]);
+
+  useEffect(() => {
+    const visible = new Set(filteredSlugs);
+    setSelectedSlugs((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const slug of prev) {
+        if (visible.has(slug)) next.add(slug);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [filteredSlugs]);
 
   async function importCsv(file: File) {
     setImporting(true);
@@ -266,10 +369,57 @@ export default function CategoriesAdminPage() {
             e.currentTarget.value = "";
           }}
         />
+        {selectedCount > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/25 bg-tint-danger/25 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">
+              <span className="font-semibold tabular-nums">{selectedCount}</span> categor
+              {selectedCount === 1 ? "y" : "ies"} selected
+              {search.trim() && selectedInFilterCount !== selectedCount ? (
+                <span className="text-caption-foreground">
+                  {" "}
+                  ({selectedInFilterCount} in current search)
+                </span>
+              ) : null}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={deleting}
+                className="rounded-full border border-border bg-background/80 px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
+              >
+                Clear selection
+              </button>
+              <button
+                type="button"
+                onClick={() => void bulkRemove()}
+                disabled={deleting}
+                className="rounded-full border border-danger/40 bg-danger/15 px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger/25 disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : `Delete selected (${selectedCount})`}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[560px] text-left text-sm">
+          <table className="w-full min-w-[600px] text-left text-sm">
             <thead className="bg-muted/50 font-mono text-[11px] uppercase tracking-wider text-caption-foreground">
               <tr>
+                <th className="w-10 px-3 py-2">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAllFiltered}
+                    disabled={loading || filteredRows.length === 0}
+                    aria-label={
+                      allFilteredSelected
+                        ? "Deselect all categories in list"
+                        : "Select all categories in list"
+                    }
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                </th>
                 <th className="px-3 py-2">Order</th>
                 <th className="px-3 py-2">Slug</th>
                 <th className="px-3 py-2">Name</th>
@@ -278,23 +428,36 @@ export default function CategoriesAdminPage() {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                     No categories found.
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((c) => (
+                filteredRows.map((c) => {
+                  const checked = selectedSlugs.has(c.slug);
+                  return (
                   <tr
                     key={c.slug}
                     onClick={() => view(c)}
-                    className="group cursor-pointer bg-card transition-colors hover:bg-tint-primary/15"
+                    className={`group cursor-pointer transition-colors hover:bg-tint-primary/15 ${
+                      checked ? "bg-tint-danger/12" : "bg-card"
+                    }`}
                   >
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSelect(c.slug)}
+                        aria-label={`Select ${c.name || c.slug}`}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                    </td>
                     <td className="px-3 py-2 tabular-nums text-caption-foreground">{c.order ?? 0}</td>
                     <td className="px-3 py-2 font-mono text-xs">{c.slug}</td>
                     <td className="px-3 py-2">
@@ -306,7 +469,8 @@ export default function CategoriesAdminPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

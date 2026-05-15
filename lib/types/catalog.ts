@@ -17,12 +17,21 @@ export type ProductCategory = {
   order?: number;
 };
 
+export type ProductSubcategory = {
+  slug: string;
+  categorySlug: string;
+  name: string;
+  description?: string;
+  order?: number;
+};
+
 export type CatalogProduct = {
   id: string;
   slug: string;
   imageUrl?: string;
   catalogNumber: string;
   categorySlug: string;
+  subcategorySlug?: string;
   chemicalName: string;
   casNumber: string;
   molecularFormula: string;
