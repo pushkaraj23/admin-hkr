@@ -25,6 +25,12 @@ export type ProductSubcategory = {
   order?: number;
 };
 
+export type ProductVariant = {
+  size: string;
+  price: string;
+  availabilityLabel: string;
+};
+
 export type CatalogProduct = {
   id: string;
   slug: string;
@@ -33,19 +39,29 @@ export type CatalogProduct = {
   categorySlug: string;
   subcategorySlug?: string;
   chemicalName: string;
+  alternativeName?: string;
   casNumber: string;
   molecularFormula: string;
   molecularWeight: string;
   purity: string;
   appearance: string;
+  solubility?: string;
   shortDescription: string;
   detailedDescription: string;
   applications: string[];
   storageConditions: string;
   packSizes: string[];
+  variants?: ProductVariant[];
   availability: ProductAvailability;
-  datasheetUrl?: string;
   coaAvailable: boolean;
   sdsAvailable: boolean;
-  relatedSlugs: string[];
+  sdsUrl?: string;
+  dslStatus?: string;
+  tscaCertification?: string;
+  rtecsNumber?: string;
+  coaLotFormat?: string;
+  shippingConditions?: string;
+  tariffCode?: string;
+  safetyStatement?: string;
+  showSingleLotAvailability?: boolean;
 };

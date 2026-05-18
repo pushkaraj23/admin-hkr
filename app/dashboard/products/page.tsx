@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ProductExtendedFields } from "@/components/admin/ProductExtendedFields";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
 import { parseBoolean, parseCsv, splitMulti } from "@/lib/admin/csv";
-import type { CatalogProduct, ProductAvailability } from "@/lib/types/catalog";
+import type { CatalogProduct, ProductAvailability, ProductVariant } from "@/lib/types/catalog";
 
 type ProductRow = CatalogProduct & Record<string, unknown>;
 type CatRow = { slug: string; name: string };
@@ -14,8 +15,78 @@ type SubRow = { slug: string; name: string; categorySlug: string };
 const AVAIL: ProductAvailability[] = ["In stock", "Made to order", "Limited lots", "Quote required"];
 
 const PRODUCT_SAMPLE_CSV = [
-  "id,slug,imageUrl,catalogNumber,categorySlug,subcategorySlug,chemicalName,casNumber,molecularFormula,molecularWeight,purity,appearance,shortDescription,detailedDescription,applications,storageConditions,packSizes,availability,datasheetUrl,coaAvailable,sdsAvailable,relatedSlugs",
-  'prod-hkr-carb-001,hkr-carb-001,https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200,HKR-CARB-001,carbohydrates,monosaccharides,Example Chemical,572-09-8,C14H19BrO9,411.20 g/mol,>=98%,Off-white solid,Short description,Detailed description,"Glycosylation|Route scouting",-20 C under inert atmosphere,"100 mg|500 mg",In stock,https://example.com/datasheet.pdf,true,true,"hkr-carb-002|hkr-carb-003"',
+  [
+    "id",
+    "slug",
+    "imageUrl",
+    "catalogNumber",
+    "categorySlug",
+    "subcategorySlug",
+    "chemicalName",
+    "alternativeName",
+    "casNumber",
+    "molecularFormula",
+    "molecularWeight",
+    "purity",
+    "appearance",
+    "solubility",
+    "shortDescription",
+    "detailedDescription",
+    "applications",
+    "storageConditions",
+    "packSizes",
+    "variantSizes",
+    "variantPrices",
+    "variantAvailability",
+    "availability",
+    "coaAvailable",
+    "sdsAvailable",
+    "sdsUrl",
+    "dslStatus",
+    "tscaCertification",
+    "rtecsNumber",
+    "coaLotFormat",
+    "shippingConditions",
+    "tariffCode",
+    "safetyStatement",
+    "showSingleLotAvailability",
+  ].join(","),
+  [
+    "prod-hkr-carb-001",
+    "hkr-carb-001",
+    "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200",
+    "HKR-CARB-001",
+    "carbohydrates",
+    "monosaccharides",
+    "Example Chemical",
+    "(2R,3S)-IUPAC name",
+    "572-09-8",
+    "C14H19BrO9",
+    "411.20 g/mol",
+    ">=98%",
+    "Off-white solid",
+    "DCM|DMSO|Acetone",
+    "Short description",
+    "Detailed description",
+    '"Glycosylation|Route scouting"',
+    "-20 C under inert atmosphere",
+    '"100 mg|500 mg|1 g"',
+    '"100 mg|500 mg|1 g"',
+    '"$140.00|$500.00|$900.00"',
+    '"In stock|In stock|Made to order"',
+    "In stock",
+    "true",
+    "true",
+    "https://example.com/sds.pdf",
+    "DSL listed",
+    "TSCA listed",
+    "AB1234567",
+    "ABC12345",
+    "Ambient temperature",
+    "2939.99.0000",
+    "Not a dangerous substance according to GHS.",
+    "false",
+  ].join(","),
 ].join("\n");
 
 function emptyProduct(): CatalogProduct {
@@ -27,21 +98,31 @@ function emptyProduct(): CatalogProduct {
     categorySlug: "",
     subcategorySlug: "",
     chemicalName: "",
+    alternativeName: "",
     casNumber: "",
     molecularFormula: "",
     molecularWeight: "",
     purity: "",
     appearance: "",
+    solubility: "",
     shortDescription: "",
     detailedDescription: "",
     applications: [],
     storageConditions: "",
     packSizes: [],
+    variants: [],
     availability: "Quote required",
-    datasheetUrl: "",
     coaAvailable: false,
     sdsAvailable: false,
-    relatedSlugs: [],
+    sdsUrl: "",
+    dslStatus: "",
+    tscaCertification: "",
+    rtecsNumber: "",
+    coaLotFormat: "",
+    shippingConditions: "",
+    tariffCode: "",
+    safetyStatement: "",
+    showSingleLotAvailability: false,
   };
 }
 
@@ -115,23 +196,39 @@ export default function ProductsAdminPage() {
       categorySlug: String(p.categorySlug ?? ""),
       subcategorySlug: String(p.subcategorySlug ?? ""),
       chemicalName: String(p.chemicalName ?? ""),
+      alternativeName: String(p.alternativeName ?? ""),
       casNumber: String(p.casNumber ?? ""),
       molecularFormula: String(p.molecularFormula ?? ""),
       molecularWeight: String(p.molecularWeight ?? ""),
       purity: String(p.purity ?? ""),
       appearance: String(p.appearance ?? ""),
+      solubility: String(p.solubility ?? ""),
       shortDescription: String(p.shortDescription ?? ""),
       detailedDescription: String(p.detailedDescription ?? ""),
       applications: Array.isArray(p.applications) ? [...p.applications] : [],
       storageConditions: String(p.storageConditions ?? ""),
       packSizes: Array.isArray(p.packSizes) ? [...p.packSizes] : [],
+      variants: Array.isArray(p.variants)
+        ? (p.variants as ProductVariant[]).map((v) => ({
+            size: String(v.size ?? ""),
+            price: String(v.price ?? ""),
+            availabilityLabel: String(v.availabilityLabel ?? ""),
+          }))
+        : [],
       availability: AVAIL.includes(p.availability as ProductAvailability)
         ? (p.availability as ProductAvailability)
         : "Quote required",
-      datasheetUrl: p.datasheetUrl ? String(p.datasheetUrl) : "",
       coaAvailable: Boolean(p.coaAvailable),
       sdsAvailable: Boolean(p.sdsAvailable),
-      relatedSlugs: Array.isArray(p.relatedSlugs) ? [...p.relatedSlugs] : [],
+      sdsUrl: p.sdsUrl ? String(p.sdsUrl) : "",
+      dslStatus: p.dslStatus ? String(p.dslStatus) : "",
+      tscaCertification: p.tscaCertification ? String(p.tscaCertification) : "",
+      rtecsNumber: p.rtecsNumber ? String(p.rtecsNumber) : "",
+      coaLotFormat: p.coaLotFormat ? String(p.coaLotFormat) : "",
+      shippingConditions: p.shippingConditions ? String(p.shippingConditions) : "",
+      tariffCode: p.tariffCode ? String(p.tariffCode) : "",
+      safetyStatement: p.safetyStatement ? String(p.safetyStatement) : "",
+      showSingleLotAvailability: Boolean(p.showSingleLotAvailability),
     });
     setActiveSlug(String(p.slug));
     setDetailMode("edit");
@@ -159,8 +256,13 @@ export default function ProductsAdminPage() {
       id: form.id.trim() || slug,
       applications: form.applications.map((s) => s.trim()).filter(Boolean),
       packSizes: form.packSizes.map((s) => s.trim()).filter(Boolean),
-      relatedSlugs: form.relatedSlugs.map((s) => s.trim()).filter(Boolean),
-      datasheetUrl: form.datasheetUrl?.trim() || "",
+      variants: (form.variants ?? [])
+        .map((v) => ({
+          size: v.size.trim(),
+          price: v.price.trim(),
+          availabilityLabel: v.availabilityLabel.trim(),
+        }))
+        .filter((v) => v.size),
     };
     try {
       await adminApi("/api/admin/products", {
@@ -277,30 +379,53 @@ export default function ProductsAdminPage() {
     try {
       const text = await file.text();
       const records = parseCsv(text);
-      const rows = records.map((r) => ({
-        id: String(r.id ?? "").trim(),
-        slug: String(r.slug ?? "").trim().toLowerCase().replace(/\s+/g, "-"),
-        imageUrl: String(r.imageUrl ?? "").trim(),
-        catalogNumber: String(r.catalogNumber ?? "").trim(),
-        categorySlug: String(r.categorySlug ?? "").trim(),
-        subcategorySlug: String(r.subcategorySlug ?? "").trim(),
-        chemicalName: String(r.chemicalName ?? "").trim(),
-        casNumber: String(r.casNumber ?? "").trim(),
-        molecularFormula: String(r.molecularFormula ?? "").trim(),
-        molecularWeight: String(r.molecularWeight ?? "").trim(),
-        purity: String(r.purity ?? "").trim(),
-        appearance: String(r.appearance ?? "").trim(),
-        shortDescription: String(r.shortDescription ?? "").trim(),
-        detailedDescription: String(r.detailedDescription ?? "").trim(),
-        applications: splitMulti(String(r.applications ?? "")),
-        storageConditions: String(r.storageConditions ?? "").trim(),
-        packSizes: splitMulti(String(r.packSizes ?? "")),
-        availability: String(r.availability ?? "Quote required").trim(),
-        datasheetUrl: String(r.datasheetUrl ?? "").trim(),
-        coaAvailable: parseBoolean(String(r.coaAvailable ?? "")),
-        sdsAvailable: parseBoolean(String(r.sdsAvailable ?? "")),
-        relatedSlugs: splitMulti(String(r.relatedSlugs ?? "")),
-      }));
+      const rows = records.map((r) => {
+        const sizes = splitMulti(String(r.variantSizes ?? ""));
+        const prices = splitMulti(String(r.variantPrices ?? ""));
+        const availLabels = splitMulti(String(r.variantAvailability ?? ""));
+        const variants = sizes
+          .map((size, i) => ({
+            size,
+            price: (prices[i] ?? "").trim(),
+            availabilityLabel: (availLabels[i] ?? "").trim(),
+          }))
+          .filter((v) => v.size);
+
+        return {
+          id: String(r.id ?? "").trim(),
+          slug: String(r.slug ?? "").trim().toLowerCase().replace(/\s+/g, "-"),
+          imageUrl: String(r.imageUrl ?? "").trim(),
+          catalogNumber: String(r.catalogNumber ?? "").trim(),
+          categorySlug: String(r.categorySlug ?? "").trim(),
+          subcategorySlug: String(r.subcategorySlug ?? "").trim(),
+          chemicalName: String(r.chemicalName ?? "").trim(),
+          alternativeName: String(r.alternativeName ?? "").trim(),
+          casNumber: String(r.casNumber ?? "").trim(),
+          molecularFormula: String(r.molecularFormula ?? "").trim(),
+          molecularWeight: String(r.molecularWeight ?? "").trim(),
+          purity: String(r.purity ?? "").trim(),
+          appearance: String(r.appearance ?? "").trim(),
+          solubility: String(r.solubility ?? "").trim(),
+          shortDescription: String(r.shortDescription ?? "").trim(),
+          detailedDescription: String(r.detailedDescription ?? "").trim(),
+          applications: splitMulti(String(r.applications ?? "")),
+          storageConditions: String(r.storageConditions ?? "").trim(),
+          packSizes: splitMulti(String(r.packSizes ?? "")),
+          variants,
+          availability: String(r.availability ?? "Quote required").trim(),
+          coaAvailable: parseBoolean(String(r.coaAvailable ?? "")),
+          sdsAvailable: parseBoolean(String(r.sdsAvailable ?? "")),
+          sdsUrl: String(r.sdsUrl ?? "").trim(),
+          dslStatus: String(r.dslStatus ?? "").trim(),
+          tscaCertification: String(r.tscaCertification ?? "").trim(),
+          rtecsNumber: String(r.rtecsNumber ?? "").trim(),
+          coaLotFormat: String(r.coaLotFormat ?? "").trim(),
+          shippingConditions: String(r.shippingConditions ?? "").trim(),
+          tariffCode: String(r.tariffCode ?? "").trim(),
+          safetyStatement: String(r.safetyStatement ?? "").trim(),
+          showSingleLotAvailability: parseBoolean(String(r.showSingleLotAvailability ?? "")),
+        };
+      });
       const res = await adminApi<{ imported: number }>("/api/admin/products", {
         method: "POST",
         body: JSON.stringify({ rows }),
@@ -613,7 +738,6 @@ export default function ProductsAdminPage() {
             <DetailItem label="Purity" value={String(activeProduct.purity ?? "—")} />
             <DetailItem label="Appearance" value={String(activeProduct.appearance ?? "—")} />
             <DetailItem label="Storage" value={String(activeProduct.storageConditions ?? "—")} />
-            <DetailItem label="Datasheet URL" value={String(activeProduct.datasheetUrl ?? "—")} />
           </dl>
         </section>
         </div>
@@ -842,34 +966,7 @@ export default function ProductsAdminPage() {
               className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
             />
           </div>
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold uppercase text-caption-foreground">
-              Related product slugs (comma or newline)
-            </label>
-            <textarea
-              value={form.relatedSlugs.join("\n")}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  relatedSlugs: e.target.value
-                    .split(/[\n,]+/)
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                }))
-              }
-              rows={2}
-              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-caption-foreground">Datasheet URL</label>
-            <input
-              value={form.datasheetUrl}
-              onChange={(e) => setForm((f) => ({ ...f, datasheetUrl: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
-            />
-          </div>
-          <div className="flex items-center gap-6 pt-6">
+          <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -887,6 +984,7 @@ export default function ProductsAdminPage() {
               SDS
             </label>
           </div>
+          <ProductExtendedFields form={form} setForm={setForm} />
           <div className="md:col-span-2 flex flex-wrap gap-2 pt-4">
             <button
               type="submit"

@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireAdminRequest } from "@/lib/admin/auth-route";
+import { productPayloadFromBody } from "@/lib/admin/product-payload";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
-
-const AVAIL = ["In stock", "Made to order", "Limited lots", "Quote required"] as const;
 
 export async function GET(req: Request) {
   const auth = await requireAdminRequest(req);
@@ -36,34 +35,8 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "slug required" }, { status: 400 });
   }
 
-  const availabilityRaw = String(body.availability ?? "Quote required");
-  const availability = AVAIL.includes(availabilityRaw as (typeof AVAIL)[number])
-    ? availabilityRaw
-    : "Quote required";
-
   const payload = {
-    id: String(body.id ?? slug),
-    slug,
-    imageUrl: body.imageUrl ? String(body.imageUrl) : "",
-    catalogNumber: String(body.catalogNumber ?? ""),
-    categorySlug: String(body.categorySlug ?? ""),
-    subcategorySlug: body.subcategorySlug ? String(body.subcategorySlug) : "",
-    chemicalName: String(body.chemicalName ?? ""),
-    casNumber: String(body.casNumber ?? ""),
-    molecularFormula: String(body.molecularFormula ?? ""),
-    molecularWeight: String(body.molecularWeight ?? ""),
-    purity: String(body.purity ?? ""),
-    appearance: String(body.appearance ?? ""),
-    shortDescription: String(body.shortDescription ?? ""),
-    detailedDescription: String(body.detailedDescription ?? ""),
-    applications: Array.isArray(body.applications) ? body.applications.map(String) : [],
-    storageConditions: String(body.storageConditions ?? ""),
-    packSizes: Array.isArray(body.packSizes) ? body.packSizes.map(String) : [],
-    availability,
-    datasheetUrl: body.datasheetUrl ? String(body.datasheetUrl) : "",
-    coaAvailable: Boolean(body.coaAvailable),
-    sdsAvailable: Boolean(body.sdsAvailable),
-    relatedSlugs: Array.isArray(body.relatedSlugs) ? body.relatedSlugs.map(String) : [],
+    ...productPayloadFromBody(body, slug),
     updatedAt: FieldValue.serverTimestamp(),
   };
 
@@ -97,34 +70,8 @@ export async function POST(req: Request) {
     const chemicalName = String(row.chemicalName ?? "").trim();
     if (!slug || !catalogNumber || !categorySlug || !chemicalName) continue;
 
-    const availabilityRaw = String(row.availability ?? "Quote required");
-    const availability = AVAIL.includes(availabilityRaw as (typeof AVAIL)[number])
-      ? availabilityRaw
-      : "Quote required";
-
     const payload = {
-      id: String(row.id ?? slug),
-      slug,
-      imageUrl: row.imageUrl ? String(row.imageUrl) : "",
-      catalogNumber,
-      categorySlug,
-      subcategorySlug: row.subcategorySlug ? String(row.subcategorySlug) : "",
-      chemicalName,
-      casNumber: String(row.casNumber ?? ""),
-      molecularFormula: String(row.molecularFormula ?? ""),
-      molecularWeight: String(row.molecularWeight ?? ""),
-      purity: String(row.purity ?? ""),
-      appearance: String(row.appearance ?? ""),
-      shortDescription: String(row.shortDescription ?? ""),
-      detailedDescription: String(row.detailedDescription ?? ""),
-      applications: Array.isArray(row.applications) ? row.applications.map(String) : [],
-      storageConditions: String(row.storageConditions ?? ""),
-      packSizes: Array.isArray(row.packSizes) ? row.packSizes.map(String) : [],
-      availability,
-      datasheetUrl: row.datasheetUrl ? String(row.datasheetUrl) : "",
-      coaAvailable: Boolean(row.coaAvailable),
-      sdsAvailable: Boolean(row.sdsAvailable),
-      relatedSlugs: Array.isArray(row.relatedSlugs) ? row.relatedSlugs.map(String) : [],
+      ...productPayloadFromBody({ ...row, slug, catalogNumber, categorySlug, chemicalName }, slug),
       updatedAt: FieldValue.serverTimestamp(),
     };
 
