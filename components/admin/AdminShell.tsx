@@ -7,6 +7,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import {
   IconCategories,
   IconEnquiries,
+  IconOrders,
   IconLogout,
   IconMenu,
   IconOverview,
@@ -22,6 +23,7 @@ const nav = [
   { href: "/dashboard/subcategories", label: "Subcategories", Icon: IconCategories },
   { href: "/dashboard/products", label: "Products", Icon: IconProducts },
   { href: "/dashboard/enquiries", label: "Enquiries", Icon: IconEnquiries },
+  { href: "/dashboard/orders", label: "Orders", Icon: IconOrders },
 ] as const;
 
 export function AdminShell({ children }: { children: ReactNode }) {
