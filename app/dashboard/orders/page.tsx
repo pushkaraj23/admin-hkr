@@ -4,13 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
+import {
+  DownloadOrderInvoiceButton,
+  getAdminOrderCustomerName,
+} from "@/components/admin/DownloadOrderInvoiceButton";
+import type { AdminOrderRow } from "@/lib/commerce/map-admin-order";
 
-type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
+type OrderStatus = "pending" | "paid" | "delivered" | "failed" | "cancelled";
 
 type OrderLine = {
   slug: string;
   chemicalName: string;
   catalogNumber: string;
+  categorySlug?: string;
+  productSlug?: string;
   variantSize?: string;
   variantPrice?: string;
   quantity: number;
@@ -21,6 +28,7 @@ type OrderRow = {
   id: string;
   userId: string;
   userEmail: string;
+  userName: string;
   status: OrderStatus;
   lineCount: number;
   totalUnits: number;
@@ -33,12 +41,14 @@ type OrderRow = {
   adminNotes: string;
   createdAtIso: string;
   paidAtIso: string;
+  deliveredAtIso: string;
 };
 
-const STATUSES: OrderStatus[] = ["pending", "paid", "failed", "cancelled"];
+const STATUSES: OrderStatus[] = ["pending", "paid", "delivered", "failed", "cancelled"];
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "Pending",
   paid: "Paid",
+  delivered: "Delivered",
   failed: "Failed",
   cancelled: "Cancelled",
 };
@@ -48,6 +58,26 @@ function formatMoney(amount: number, currency: string) {
     style: "currency",
     currency: currency === "USD" ? "USD" : "INR",
   }).format(amount);
+}
+
+function shortOrderId(id: string) {
+  if (id.length <= 14) return id;
+  return `${id.slice(0, 10)}…`;
+}
+
+function orderStatusBadgeClass(status: OrderStatus): string {
+  switch (status) {
+    case "paid":
+      return "border-primary/40 bg-tint-primary text-primary-deep";
+    case "delivered":
+      return "border-accent/45 bg-tint-accent text-accent-foreground";
+    case "failed":
+      return "border-red-300/80 bg-red-50 text-red-800";
+    case "cancelled":
+      return "border-border bg-muted text-muted-foreground";
+    default:
+      return "border-amber-400/50 bg-amber-50 text-amber-900";
+  }
 }
 
 export default function OrdersAdminPage() {
@@ -159,28 +189,27 @@ export default function OrdersAdminPage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <section className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="max-h-[520px] overflow-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
-              <thead className="sticky top-0 bg-muted/80 font-mono text-[11px] uppercase tracking-wider text-caption-foreground backdrop-blur">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="max-h-[520px] overflow-y-auto overflow-x-hidden">
+            <table className="w-full table-fixed text-left text-sm">
+              <thead className="sticky top-0 z-[1] bg-muted/80 font-mono text-[11px] uppercase tracking-wider text-caption-foreground backdrop-blur">
                 <tr>
-                  <th className="px-3 py-2">Order</th>
-                  <th className="px-3 py-2">Customer</th>
-                  <th className="px-3 py-2">Total</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Placed</th>
+                  <th className="w-[34%] px-3 py-2">Order</th>
+                  <th className="w-[26%] px-3 py-2">Status</th>
+                  <th className="w-[22%] px-3 py-2">Total</th>
+                  <th className="w-[18%] px-3 py-2">Placed</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
                       Loading...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
                       No orders yet.
                     </td>
                   </tr>
@@ -193,22 +222,17 @@ export default function OrdersAdminPage() {
                         className={`cursor-pointer ${selected ? "bg-primary/10" : "bg-card hover:bg-muted/35"}`}
                         onClick={() => setActiveId(row.id)}
                       >
-                        <td className="max-w-[140px] truncate px-3 py-2.5 font-mono text-xs" title={row.id}>
-                          {row.id}
-                        </td>
-                        <td className="max-w-[180px] truncate px-3 py-2.5" title={row.userEmail}>
-                          {row.userEmail || "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 font-medium">
-                          {formatMoney(row.subtotal, row.currency)}
+                        <td className="truncate px-3 py-2.5 font-mono text-xs" title={row.id}>
+                          {shortOrderId(row.id)}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className="rounded-full border border-border bg-background px-2 py-1 text-xs">
-                            {STATUS_LABELS[row.status]}
-                          </span>
+                          <OrderStatusBadge status={row.status} />
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-xs text-caption-foreground">
-                          {formatDate(row.createdAtIso)}
+                        <td className="truncate px-3 py-2.5 font-medium">
+                          {formatMoney(row.subtotal, row.currency)}
+                        </td>
+                        <td className="truncate px-3 py-2.5 text-xs text-caption-foreground" title={formatDate(row.createdAtIso)}>
+                          {formatDateShort(row.createdAtIso)}
                         </td>
                       </tr>
                     );
@@ -259,16 +283,25 @@ function OrderDetailCard({
   onUpdate: (id: string, status: OrderStatus, adminNotes?: string) => Promise<void>;
 }) {
   const [notes, setNotes] = useState(row.adminNotes ?? "");
+  const customerName = getAdminOrderCustomerName(row as AdminOrderRow);
 
   return (
     <div className="mt-4 space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <OrderStatusBadge status={row.status} />
+        <span className="text-xs text-caption-foreground">Placed {formatDate(row.createdAtIso)}</span>
+      </div>
+
       <div className="rounded-xl border border-border bg-background/60 p-4 text-sm">
         <p>
           <span className="text-caption-foreground">Order ID:</span>{" "}
           <span className="font-mono text-xs">{row.id}</span>
         </p>
         <p className="mt-1">
-          <span className="text-caption-foreground">Customer:</span> {row.userEmail || "—"}
+          <span className="text-caption-foreground">Customer name:</span> {customerName}
+        </p>
+        <p className="mt-1">
+          <span className="text-caption-foreground">Email:</span> {row.userEmail || "—"}
         </p>
         <p className="mt-1">
           <span className="text-caption-foreground">Total:</span> {formatMoney(row.subtotal, row.currency)} (
@@ -284,6 +317,9 @@ function OrderDetailCard({
         </p>
         <p className="mt-1">
           <span className="text-caption-foreground">Paid at:</span> {formatDate(row.paidAtIso)}
+        </p>
+        <p className="mt-1">
+          <span className="text-caption-foreground">Delivered at:</span> {formatDate(row.deliveredAtIso)}
         </p>
       </div>
 
@@ -323,17 +359,31 @@ function OrderDetailCard({
             type="button"
             disabled={busy}
             onClick={() => void onUpdate(row.id, s, notes)}
-            className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${row.status === s ? "border-primary/40 bg-primary/12 text-foreground" : "border-border bg-background text-muted-foreground hover:text-foreground"} disabled:opacity-60`}
+            className={`rounded-full border px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
+              row.status === s
+                ? orderStatusBadgeClass(s)
+                : "border-border bg-background text-muted-foreground hover:border-border-strong hover:text-foreground"
+            }`}
           >
             Mark {STATUS_LABELS[s]}
           </button>
         ))}
       </div>
 
-      <p className="border-t border-border pt-3 text-xs text-caption-foreground">
-        Placed {formatDate(row.createdAtIso)}
-      </p>
+      <div className="border-t border-border pt-4">
+        <DownloadOrderInvoiceButton row={row as AdminOrderRow} />
+      </div>
     </div>
+  );
+}
+
+function OrderStatusBadge({ status }: { status: OrderStatus }) {
+  return (
+    <span
+      className={`inline-flex max-w-full truncate rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${orderStatusBadgeClass(status)}`}
+    >
+      {STATUS_LABELS[status]}
+    </span>
   );
 }
 
@@ -342,4 +392,11 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
+}
+
+function formatDateShort(value: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

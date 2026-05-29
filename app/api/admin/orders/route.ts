@@ -4,13 +4,36 @@ import { requireAdminRequest } from "@/lib/admin/auth-route";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 
-type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
+type OrderStatus = "pending" | "paid" | "delivered" | "failed" | "cancelled";
 
-const VALID_STATUSES: OrderStatus[] = ["pending", "paid", "failed", "cancelled"];
+const VALID_STATUSES: OrderStatus[] = ["pending", "paid", "delivered", "failed", "cancelled"];
 
 function normalizeStatus(value: unknown): OrderStatus {
   const raw = String(value ?? "").trim() as OrderStatus;
   return VALID_STATUSES.includes(raw) ? raw : "pending";
+}
+
+function parseOrderLineItems(raw: unknown) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const row = entry as Record<string, unknown>;
+      const slug = String(row.slug ?? "").trim();
+      if (!slug) return null;
+      return {
+        slug,
+        chemicalName: String(row.chemicalName ?? ""),
+        catalogNumber: String(row.catalogNumber ?? ""),
+        categorySlug: String(row.categorySlug ?? ""),
+        productSlug: String(row.productSlug ?? ""),
+        variantSize: String(row.variantSize ?? ""),
+        variantPrice: String(row.variantPrice ?? ""),
+        quantity: Math.max(1, Number(row.quantity ?? 1)),
+        lineTotal: typeof row.lineTotal === "number" ? row.lineTotal : null,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 }
 
 export async function GET(req: Request) {
@@ -39,11 +62,13 @@ export async function GET(req: Request) {
         const data = doc.data() as Record<string, unknown>;
         const createdAt = data.createdAt as { toDate?: () => Date } | undefined;
         const paidAt = data.paidAtIso as string | undefined;
-        const items = Array.isArray(data.items) ? data.items : [];
+        const deliveredAt = data.deliveredAtIso as string | undefined;
+        const items = parseOrderLineItems(data.items);
         return {
           id: doc.id,
           userId: String(data.userId ?? ""),
           userEmail: String(data.userEmail ?? ""),
+          userName: String(data.userName ?? ""),
           status: normalizeStatus(data.status),
           lineCount: Number(data.lineCount ?? items.length),
           totalUnits: Number(data.totalUnits ?? 0),
@@ -58,11 +83,13 @@ export async function GET(req: Request) {
             ? createdAt.toDate().toISOString()
             : String(data.createdAtIso ?? ""),
           paidAtIso: paidAt ?? "",
+          deliveredAtIso: deliveredAt ?? "",
         };
       })
       .filter((row) => {
         if (!search) return true;
-        const haystack = `${row.id} ${row.userEmail} ${row.razorpayOrderId} ${row.razorpayPaymentId}`.toLowerCase();
+        const haystack =
+          `${row.id} ${row.userName} ${row.userEmail} ${row.razorpayOrderId} ${row.razorpayPaymentId}`.toLowerCase();
         return haystack.includes(search);
       });
 
@@ -84,13 +111,23 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
   }
 
-  const payload = {
-    status: normalizeStatus(body.status),
+  const status = normalizeStatus(body.status);
+  const db = getAdminFirestore();
+  const ref = db.collection("orders").doc(id);
+  const existing = await ref.get();
+  const existingData = existing.data() as Record<string, unknown> | undefined;
+
+  const payload: Record<string, unknown> = {
+    status,
     adminNotes: String(body.adminNotes ?? "").trim(),
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: auth.email ?? auth.uid,
   };
 
-  await getAdminFirestore().collection("orders").doc(id).set(payload, { merge: true });
+  if (status === "delivered" && !existingData?.deliveredAtIso) {
+    payload.deliveredAtIso = new Date().toISOString();
+  }
+
+  await ref.set(payload, { merge: true });
   return NextResponse.json({ ok: true });
 }
