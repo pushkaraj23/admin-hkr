@@ -18,9 +18,6 @@ const AVAIL: ProductAvailability[] = ["In stock", "Made to order", "Limited lots
 
 const PRODUCT_SAMPLE_CSV = [
   [
-    "id",
-    "slug",
-    "imageUrl",
     "catalogNumber",
     "categorySlug",
     "subcategorySlug",
@@ -54,9 +51,6 @@ const PRODUCT_SAMPLE_CSV = [
     "showSingleLotAvailability",
   ].join(","),
   [
-    "prod-hkr-carb-001",
-    "hkr-carb-001",
-    "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200",
     "HKR-CARB-001",
     "carbohydrates",
     "monosaccharides",
@@ -394,9 +388,6 @@ export default function ProductsAdminPage() {
           .filter((v) => v.size);
 
         return {
-          id: String(r.id ?? "").trim(),
-          slug: String(r.slug ?? "").trim().toLowerCase().replace(/\s+/g, "-"),
-          imageUrl: String(r.imageUrl ?? "").trim(),
           catalogNumber: String(r.catalogNumber ?? "").trim(),
           categorySlug: String(r.categorySlug ?? "").trim(),
           subcategorySlug: String(r.subcategorySlug ?? "").trim(),

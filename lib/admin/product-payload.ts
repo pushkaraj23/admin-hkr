@@ -1,3 +1,4 @@
+import { productIdFromSlug } from "@/lib/admin/product-slug";
 import type { ProductVariant } from "@/lib/types/catalog";
 
 const AVAIL = ["In stock", "Made to order", "Limited lots", "Quote required"] as const;
@@ -28,7 +29,7 @@ export function productPayloadFromBody(body: Record<string, unknown>, slug: stri
   const variants = parseVariants(body.variants);
 
   return {
-    id: String(body.id ?? slug),
+    id: String(body.id ?? "").trim() || productIdFromSlug(slug),
     slug,
     imageUrl: body.imageUrl ? String(body.imageUrl) : "",
     catalogNumber: String(body.catalogNumber ?? ""),

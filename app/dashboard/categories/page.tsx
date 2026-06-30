@@ -23,8 +23,8 @@ const empty = (): ProductCategory => ({
 });
 
 const CATEGORY_SAMPLE_CSV = [
-  "slug,name,imageUrl,tagline,description,overview,highlights,order",
-  'carbohydrates,Carbohydrates,https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=1200,High-purity building blocks,Short description,Long overview,"HPLC validated|Scale-up support|Custom synthesis",1',
+  "name,tagline,description,overview,highlights,order",
+  'Carbohydrates,High-purity building blocks,Short description,Long overview,"HPLC validated|Scale-up support|Custom synthesis",1',
 ].join("\n");
 
 export default function CategoriesAdminPage() {
@@ -260,9 +260,7 @@ export default function CategoriesAdminPage() {
       const text = await file.text();
       const records = parseCsv(text);
       const rows = records.map((r) => ({
-        slug: String(r.slug ?? "").trim().toLowerCase().replace(/\s+/g, "-"),
         name: String(r.name ?? "").trim(),
-        imageUrl: String(r.imageUrl ?? "").trim(),
         tagline: String(r.tagline ?? "").trim(),
         description: String(r.description ?? "").trim(),
         overview: String(r.overview ?? "").trim(),

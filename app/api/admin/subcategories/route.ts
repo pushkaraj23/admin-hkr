@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireAdminRequest } from "@/lib/admin/auth-route";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
+import { slugFromName } from "@/lib/admin/slug";
 
 export async function GET(req: Request) {
   const auth = await requireAdminRequest(req);
@@ -76,10 +77,12 @@ export async function POST(req: Request) {
   let imported = 0;
 
   for (const row of rows) {
-    const slug = String(row.slug ?? "").trim();
     const categorySlug = String(row.categorySlug ?? "").trim();
     const name = String(row.name ?? "").trim();
-    if (!slug || !categorySlug || !name) continue;
+    if (!categorySlug || !name) continue;
+
+    const slug = slugFromName(name);
+    if (!slug) continue;
 
     const payload = {
       slug,
@@ -94,7 +97,7 @@ export async function POST(req: Request) {
   }
 
   if (imported === 0) {
-    return NextResponse.json({ error: "No valid rows (slug, categorySlug, and name are required)." }, { status: 400 });
+    return NextResponse.json({ error: "No valid rows (categorySlug and name are required)." }, { status: 400 });
   }
 
   await batch.commit();

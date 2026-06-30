@@ -19,8 +19,8 @@ const empty = (): ProductSubcategory => ({
 });
 
 const SUBCATEGORY_SAMPLE_CSV = [
-  "slug,categorySlug,name,description,order",
-  "monosaccharides,carbohydrates,Monosaccharides,Single-unit sugars and derivatives,1",
+  "categorySlug,name,description,order",
+  "carbohydrates,Monosaccharides,Single-unit sugars and derivatives,1",
 ].join("\n");
 
 export default function SubcategoriesAdminPage() {
@@ -160,7 +160,6 @@ export default function SubcategoriesAdminPage() {
       const text = await file.text();
       const records = parseCsv(text);
       const importRows = records.map((r) => ({
-        slug: String(r.slug ?? "").trim().toLowerCase().replace(/\s+/g, "-"),
         categorySlug: String(r.categorySlug ?? "").trim(),
         name: String(r.name ?? "").trim(),
         description: String(r.description ?? "").trim(),

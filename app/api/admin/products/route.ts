@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireAdminRequest } from "@/lib/admin/auth-route";
 import { productPayloadFromBody } from "@/lib/admin/product-payload";
+import { slugFromCatalogNumber } from "@/lib/admin/product-slug";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
 import { deleteImagesForProductSlugs, replaceProductImageIfNeeded } from "@/lib/admin/catalog-images";
 
@@ -68,14 +69,17 @@ export async function POST(req: Request) {
   let imported = 0;
 
   for (const row of rows) {
-    const slug = String(row.slug ?? "").trim();
     const catalogNumber = String(row.catalogNumber ?? "").trim();
     const categorySlug = String(row.categorySlug ?? "").trim();
     const chemicalName = String(row.chemicalName ?? "").trim();
-    if (!slug || !catalogNumber || !categorySlug || !chemicalName) continue;
+    if (!catalogNumber || !categorySlug || !chemicalName) continue;
 
+    const slug = slugFromCatalogNumber(catalogNumber);
     const payload = {
-      ...productPayloadFromBody({ ...row, slug, catalogNumber, categorySlug, chemicalName }, slug),
+      ...productPayloadFromBody(
+        { ...row, slug, catalogNumber, categorySlug, chemicalName, imageUrl: "" },
+        slug,
+      ),
       updatedAt: FieldValue.serverTimestamp(),
     };
 
@@ -85,7 +89,7 @@ export async function POST(req: Request) {
 
   if (imported === 0) {
     return NextResponse.json(
-      { error: "No valid rows (slug, catalogNumber, categorySlug, chemicalName required)." },
+      { error: "No valid rows (catalogNumber, categorySlug, chemicalName required)." },
       { status: 400 },
     );
   }

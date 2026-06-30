@@ -4,6 +4,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireAdminRequest } from "@/lib/admin/auth-route";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
 import { deleteImagesForCategorySlugs, replaceCategoryImageIfNeeded } from "@/lib/admin/catalog-images";
+import { slugFromName } from "@/lib/admin/slug";
 
 export async function GET(req: Request) {
   const auth = await requireAdminRequest(req);
@@ -75,14 +76,16 @@ export async function POST(req: Request) {
   let imported = 0;
 
   for (const row of rows) {
-    const slug = String(row.slug ?? "").trim();
     const name = String(row.name ?? "").trim();
-    if (!slug || !name) continue;
+    if (!name) continue;
+
+    const slug = slugFromName(name);
+    if (!slug) continue;
 
     const payload = {
       slug,
       name,
-      imageUrl: row.imageUrl ? String(row.imageUrl) : "",
+      imageUrl: "",
       tagline: String(row.tagline ?? ""),
       description: String(row.description ?? ""),
       overview: String(row.overview ?? ""),
@@ -95,7 +98,7 @@ export async function POST(req: Request) {
   }
 
   if (imported === 0) {
-    return NextResponse.json({ error: "No valid rows (slug and name are required)." }, { status: 400 });
+    return NextResponse.json({ error: "No valid rows (name is required)." }, { status: 400 });
   }
 
   await batch.commit();
