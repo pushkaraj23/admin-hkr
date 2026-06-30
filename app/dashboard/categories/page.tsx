@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
+import { CatalogImageField } from "@/components/admin/CatalogImageField";
+import { DetailGrid, DetailImageItem, DetailItem } from "@/components/admin/DetailGrid";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
 import { parseCsv, splitMulti } from "@/lib/admin/csv";
 import type { ProductCategory } from "@/lib/types/catalog";
@@ -512,11 +514,11 @@ export default function CategoriesAdminPage() {
               </button>
             </div>
           </div>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <DetailGrid className="mt-4">
             <DetailItem label="Slug" value={activeRow.slug} mono />
             <DetailItem label="Name" value={activeRow.name} />
             <DetailItem label="Sort order" value={String(activeRow.order ?? 0)} />
-            <DetailItem label="Image URL" value={String(activeRow.imageUrl ?? "—")} />
+            <DetailImageItem url={String(activeRow.imageUrl ?? "")} />
             <DetailItem label="Tagline" value={String(activeRow.tagline ?? "—")} />
             <DetailItem label="Description" value={String(activeRow.description ?? "—")} />
             <DetailItem label="Overview" value={String(activeRow.overview ?? "—")} />
@@ -524,7 +526,7 @@ export default function CategoriesAdminPage() {
               label="Highlights"
               value={(Array.isArray(activeRow.highlights) ? activeRow.highlights : []).join(", ") || "—"}
             />
-          </dl>
+          </DetailGrid>
         </section>
         </div>
       ) : null}
@@ -583,13 +585,13 @@ export default function CategoriesAdminPage() {
                 className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
               />
             </div>
-            <div>
-              <label className="text-xs font-semibold uppercase text-caption-foreground">Image URL</label>
-              <input
+            <div className="sm:col-span-2">
+              <CatalogImageField
+                label="Image"
                 value={form.imageUrl ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
-                placeholder="https://..."
+                onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
+                folder="categories"
+                entitySlug={form.slug}
               />
             </div>
             <div>
@@ -658,15 +660,6 @@ export default function CategoriesAdminPage() {
         </section>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function DetailItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-xl border border-border/80 bg-background/40 p-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-caption-foreground">{label}</dt>
-      <dd className={`mt-1 text-sm text-foreground ${mono ? "font-mono text-xs" : ""}`}>{value || "—"}</dd>
     </div>
   );
 }

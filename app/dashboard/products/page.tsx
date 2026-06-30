@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProductExtendedFields } from "@/components/admin/ProductExtendedFields";
+import { CatalogImageField } from "@/components/admin/CatalogImageField";
+import { DetailGrid, DetailImageItem, DetailItem } from "@/components/admin/DetailGrid";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { SetupCredentialsCallout } from "@/components/admin/SetupCredentialsCallout";
 import { AdminApiError, adminApi } from "@/lib/admin/client-fetch";
@@ -725,9 +727,10 @@ export default function ProductsAdminPage() {
               </button>
             </div>
           </div>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <DetailGrid className="mt-4">
             <DetailItem label="SKU" value={String(activeProduct.catalogNumber ?? "—")} mono />
             <DetailItem label="Slug" value={String(activeProduct.slug ?? "—")} mono />
+            <DetailImageItem url={String(activeProduct.imageUrl ?? "")} />
             <DetailItem label="Chemical name" value={String(activeProduct.chemicalName ?? "—")} />
             <DetailItem label="Category" value={String(activeProduct.categorySlug ?? "—")} />
             <DetailItem label="Subcategory" value={String(activeProduct.subcategorySlug ?? "—")} />
@@ -737,8 +740,12 @@ export default function ProductsAdminPage() {
             <DetailItem label="Mol. weight" value={String(activeProduct.molecularWeight ?? "—")} />
             <DetailItem label="Purity" value={String(activeProduct.purity ?? "—")} />
             <DetailItem label="Appearance" value={String(activeProduct.appearance ?? "—")} />
-            <DetailItem label="Storage" value={String(activeProduct.storageConditions ?? "—")} />
-          </dl>
+            <DetailItem
+              label="Storage"
+              value={String(activeProduct.storageConditions ?? "—")}
+              className="sm:col-span-2"
+            />
+          </DetailGrid>
         </section>
         </div>
       ) : null}
@@ -794,13 +801,13 @@ export default function ProductsAdminPage() {
               className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
             />
           </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-caption-foreground">Image URL</label>
-            <input
+          <div className="md:col-span-2">
+            <CatalogImageField
+              label="Image"
               value={form.imageUrl ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-ring/30 focus:ring-2"
-              placeholder="https://..."
+              onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))}
+              folder="products"
+              entitySlug={form.slug}
             />
           </div>
           <div>
@@ -1009,15 +1016,6 @@ export default function ProductsAdminPage() {
       </section>
       </div>
       ) : null}
-    </div>
-  );
-}
-
-function DetailItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-xl border border-border/80 bg-background/40 p-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-caption-foreground">{label}</dt>
-      <dd className={`mt-1 text-sm text-foreground ${mono ? "font-mono text-xs" : ""}`}>{value || "—"}</dd>
     </div>
   );
 }

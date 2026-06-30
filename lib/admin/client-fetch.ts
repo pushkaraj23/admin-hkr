@@ -25,6 +25,31 @@ export async function refreshAdminIdToken(): Promise<void> {
   await getAdminIdToken(true);
 }
 
+export async function adminApiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = await getAdminIdToken();
+  if (!token) {
+    throw new Error("Not signed in");
+  }
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const text = await res.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    const err = (data as { error?: string; code?: string })?.error ?? res.statusText;
+    const code = (data as { code?: string })?.code;
+    throw new AdminApiError(err, res.status, code);
+  }
+  return data as T;
+}
+
 export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAdminIdToken();
   if (!token) {

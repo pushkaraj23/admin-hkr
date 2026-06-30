@@ -60,3 +60,22 @@ export function getAdminAuth() {
   ensureAdminApp();
   return admin.auth();
 }
+
+export function getStorageBucketName(): string {
+  const fromEnv =
+    process.env.FIREBASE_STORAGE_BUCKET?.trim() ||
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
+  if (fromEnv) return fromEnv;
+
+  const parsed = loadServiceAccount();
+  const projectId = String(parsed.project_id ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "").trim();
+  if (!projectId) {
+    throw new Error("Storage bucket not configured (FIREBASE_STORAGE_BUCKET or project id).");
+  }
+  return `${projectId}.appspot.com`;
+}
+
+export function getAdminStorageBucket() {
+  ensureAdminApp();
+  return admin.storage().bucket(getStorageBucketName());
+}

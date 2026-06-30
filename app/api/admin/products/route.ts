@@ -4,6 +4,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireAdminRequest } from "@/lib/admin/auth-route";
 import { productPayloadFromBody } from "@/lib/admin/product-payload";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
+import { deleteImagesForProductSlugs, replaceProductImageIfNeeded } from "@/lib/admin/catalog-images";
 
 export async function GET(req: Request) {
   const auth = await requireAdminRequest(req);
@@ -35,8 +36,11 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "slug required" }, { status: 400 });
   }
 
+  const payloadBody = productPayloadFromBody(body, slug);
+  await replaceProductImageIfNeeded(slug, String(payloadBody.imageUrl ?? ""));
+
   const payload = {
-    ...productPayloadFromBody(body, slug),
+    ...payloadBody,
     updatedAt: FieldValue.serverTimestamp(),
   };
 
@@ -122,6 +126,7 @@ export async function DELETE(req: Request) {
   }
 
   const db = getAdminFirestore();
+  await deleteImagesForProductSlugs(slugs);
   const batch = db.batch();
   for (const slug of slugs) {
     batch.delete(db.collection("products").doc(slug));

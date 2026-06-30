@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireAdminRequest } from "@/lib/admin/auth-route";
 import { assertServiceAccount } from "@/lib/admin/service-account-route";
+import { deleteImagesForCategorySlugs, replaceCategoryImageIfNeeded } from "@/lib/admin/catalog-images";
 
 export async function GET(req: Request) {
   const auth = await requireAdminRequest(req);
@@ -37,10 +38,12 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "slug required" }, { status: 400 });
   }
   const highlights = Array.isArray(body.highlights) ? body.highlights.map(String) : [];
+  const imageUrl = body.imageUrl ? String(body.imageUrl) : "";
+  await replaceCategoryImageIfNeeded(slug, imageUrl);
   const payload = {
     slug,
     name: String(body.name ?? ""),
-    imageUrl: body.imageUrl ? String(body.imageUrl) : "",
+    imageUrl,
     tagline: String(body.tagline ?? ""),
     description: String(body.description ?? ""),
     overview: String(body.overview ?? ""),
@@ -131,6 +134,7 @@ export async function DELETE(req: Request) {
   }
 
   const db = getAdminFirestore();
+  await deleteImagesForCategorySlugs(slugs);
   const batch = db.batch();
   for (const slug of slugs) {
     batch.delete(db.collection("categories").doc(slug));
