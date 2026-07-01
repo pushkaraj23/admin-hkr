@@ -200,12 +200,12 @@ export function CatalogImagePreview({
 
   return (
     <div className={`w-fit max-w-full shrink-0 ${className}`}>
-      <div className={`relative ${frameClass}`}>
+      <div className={`relative overflow-hidden ${frameClass} rounded-lg border border-border bg-white`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={trimmed}
           alt="Catalog preview"
-          className={`${frameClass} rounded-lg border border-border object-cover bg-muted/20`}
+          className="h-full w-full object-contain p-1.5"
           onError={(e) => {
             e.currentTarget.style.display = "none";
           }}
